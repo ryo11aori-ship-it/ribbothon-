@@ -1,0 +1,1 @@
+{"name":"Ribbothon CI","on":["push","pull_request"],"jobs":{"build":{"runs-on":"ubuntu-latest","steps":[{"uses":"actions/checkout@v4"},{"name":"Compile Interpreter","run":"gcc -O3 ribbothon.c -o ribbothon -lm"},{"name":"Run Basic Test","run":"echo '33333500000x' | ./ribbothon"}]}}}
