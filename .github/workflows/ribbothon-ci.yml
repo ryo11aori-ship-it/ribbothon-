@@ -5,7 +5,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile Interpreter
-        run: gcc -O3 ribbothon.c -o ribbothon -lm
-      - name: Run Basic Test
-        run: echo -n '99999x99999x99999x99999x99990x53500x' | ./ribbothon
+      
+      - name: Compile Tools
+        run: |
+          gcc -O3 ribbothon.c -o ribbothon -lm
+          gcc -O3 meta_compiler1.c -o meta_compiler
+          
+      - name: Test Meta Compiler Pipeline
+        run: |
+          echo "99999 99999 99999 99999 9999 . + ." > source.txt
+          ./meta_compiler < source.txt > compiled.rib
+          echo "--- Compiled Ribbon ---"
+          cat compiled.rib
+          echo -e "\n--- Execution Result ---"
+          cat compiled.rib | ./ribbothon
