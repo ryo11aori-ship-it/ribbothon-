@@ -8,4 +8,4 @@ jobs:
       - name: Compile Interpreter
         run: gcc -O3 ribbothon.c -o ribbothon -lm
       - name: Run Basic Test
-        run: echo -n '999999999999999999999999535' | ./ribbothon
+        run: echo -n '99999x99999x99999x99999x99990x53500x' | ./ribbothon
