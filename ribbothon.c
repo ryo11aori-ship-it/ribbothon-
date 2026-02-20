@@ -193,22 +193,25 @@ void execute() {
     }
 }
 
-int main() {
-    init_dims();
-    int c;
-    
-    // Rule ⑨: 指定文字以外の厳格な排除
-    while((c = getchar()) != EOF && code_len < MAX_CODE) {
-        if((c >= '0' && c <= '9') || (c >= 'a' && c <= 'k') || c == 'x') {
-            code[code_len++] = (char)c;
-        } else {
-            fprintf(stderr, "Syntax Error: Invalid character '%c' strictly forbidden.\n", c);
-            exit(1);
-        }
-    }
-    
-    analyze_dimensions();
-    build_jump_map();
-    execute();
-    return 0;
+int main(int argc, char *argv[]) {
+init_dims();
+int c;
+FILE *fp = stdin;
+if(argc > 1) {
+fp = fopen(argv[1], "r");
+if(!fp) { fprintf(stderr, "Error opening file.\n"); exit(1); }
+}
+while((c = fgetc(fp)) != EOF && code_len < MAX_CODE) {
+if((c >= '0' && c <= '9') || (c >= 'a' && c <= 'k') || c == 'x') {
+code[code_len++] = (char)c;
+} else {
+fprintf(stderr, "Syntax Error: Invalid character '%c' strictly forbidden.\n", c);
+exit(1);
+}
+}
+if(fp != stdin) fclose(fp);
+analyze_dimensions();
+build_jump_map();
+execute();
+return 0;
 }
