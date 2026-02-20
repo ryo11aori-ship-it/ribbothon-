@@ -14,34 +14,34 @@ jobs:
       - name: Build Native x86 Compiler in Ribbothon
         run: |
           cat << 'EOF' > source_x86_compiler.txt
-Z $OUT x
-I $CHAR x
-C $CHAR $EOF_CHECK x
-A $EOF_CHECK 1 x
-W $EOF_CHECK x
-C $CHAR $CMP x
-F $CMP 43 x
-A $OUT 254 x
-P $OUT x
-Z $OUT x
-A $OUT 7 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 45 x
-A $OUT 254 x
-P $OUT x
-Z $OUT x
-A $OUT 15 x
-P $OUT x
-Z $OUT x
-U x
-I $CHAR x
-C $CHAR $EOF_CHECK x
-A $EOF_CHECK 1 x
-E x
-EOF
+          Z $OUT x
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
+          W $EOF_CHECK x
+          C $CHAR $CMP x
+          F $CMP 43 x
+          A $OUT 254 x
+          P $OUT x
+          Z $OUT x
+          A $OUT 7 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 45 x
+          A $OUT 254 x
+          P $OUT x
+          Z $OUT x
+          A $OUT 15 x
+          P $OUT x
+          Z $OUT x
+          U x
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
+          E x
+          EOF
           ./meta_compiler < source_x86_compiler.txt > x86_compiler.rib
           echo -e "\n--- Compiling '+-+' to x86 Machine Code ---"
           echo -n "+-+" | ./ribbothon x86_compiler.rib > output.bin
