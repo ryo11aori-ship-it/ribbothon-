@@ -11,73 +11,42 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Build Stage 1 Compiler
+      - name: Test Native Binary Emission (ELF Header)
         run: |
-          cat << 'EOF' > source_stage1.txt
+          cat << 'EOF' > source_elf_emitter.txt
           Z $OUT x
-          I $CHAR x
-          C $CHAR $EOF_CHECK x
-          A $EOF_CHECK 1 x
-          W $EOF_CHECK x
-          C $CHAR $CMP x
-          F $CMP 62 x
-          A $OUT 49 x
+          
+          A $OUT 127 x
           P $OUT x
           Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 60 x
-          A $OUT 50 x
+          
+          A $OUT 69 x
           P $OUT x
           Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 43 x
-          A $OUT 51 x
+          
+          A $OUT 76 x
           P $OUT x
           Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 45 x
-          A $OUT 52 x
+          
+          A $OUT 70 x
           P $OUT x
           Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 46 x
-          A $OUT 53 x
+          
+          A $OUT 2 x
           P $OUT x
           Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 44 x
-          A $OUT 54 x
+          
+          A $OUT 1 x
           P $OUT x
           Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 91 x
-          A $OUT 55 x
+          
+          A $OUT 1 x
           P $OUT x
           Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 93 x
-          A $OUT 56 x
-          P $OUT x
-          Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 120 x
-          A $OUT 120 x
-          P $OUT x
-          Z $OUT x
-          U x
-          I $CHAR x
-          C $CHAR $EOF_CHECK x
-          A $EOF_CHECK 1 x
-          E x
           EOF
-          ./meta_compiler < source_stage1.txt > stage1_compiler.rib
-          echo -e "\n--- Stage 1 Compiler Execution Result ---"
-          echo -n ">+<.-x" | ./ribbothon stage1_compiler.rib
+          ./meta_compiler < source_elf_emitter.txt > elf_emitter.rib
+          echo -e "\n--- Emitting Raw Binary from pure Ribbothon ---"
+          ./ribbothon elf_emitter.rib > output.elf
+          
+          echo -e "\n--- Hexdump of the Generated Binary ---"
+          hexdump -C output.elf
