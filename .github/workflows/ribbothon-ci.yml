@@ -9,20 +9,29 @@ jobs:
       - name: Compile Tools
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
-          gcc -O3 meta_compiler7.c -o meta_compiler
+          gcc -O3 meta_compiler8.c -o meta_compiler
           
-      - name: Test High-Level Math Abstraction
+      - name: Test Math Abstraction
         run: |
-          cat << 'EOF' > source.txt
+          cat << 'EOF' > source_math.txt
           Z $VAL_H x
           A $VAL_H 72 x
           P $VAL_H x
-          
           A $VAL_H 1 x
           P $VAL_H x
           EOF
-          ./meta_compiler < source.txt > compiled.rib
-          echo "--- Compiled Ribbon ---"
-          cat compiled.rib
-          echo -e "\n--- Execution Result ---"
-          cat compiled.rib | ./ribbothon
+          ./meta_compiler < source_math.txt > compiled_math.rib
+          echo -e "--- Math Execution Result ---"
+          ./ribbothon compiled_math.rib
+          
+      - name: Test IO (Echo Program)
+        run: |
+          cat << 'EOF' > source_io.txt
+          I $CHAR x
+          P $CHAR x
+          I $CHAR x
+          P $CHAR x
+          EOF
+          ./meta_compiler < source_io.txt > compiled_io.rib
+          echo -e "\n\n--- I/O Execution Result ---"
+          echo -n "HI" | ./ribbothon compiled_io.rib
