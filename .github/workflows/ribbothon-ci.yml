@@ -9,22 +9,17 @@ jobs:
       - name: Compile Tools
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
-          gcc -O3 meta_compiler6.c -o meta_compiler
+          gcc -O3 meta_compiler7.c -o meta_compiler
           
-      - name: Test Loop and Multiply
+      - name: Test High-Level Math Abstraction
         run: |
           cat << 'EOF' > source.txt
-          $COUNTER 99 x
+          Z $VAL_H x
+          A $VAL_H 72 x
+          P $VAL_H x
           
-          W $COUNTER x
-            $VAL_H 9999 x
-            $VAL_I 9999 x
-            $COUNTER - x
-          E x
-          
-          $VAL_I 3 x
-          $VAL_H . x
-          $VAL_I . x
+          A $VAL_H 1 x
+          P $VAL_H x
           EOF
           ./meta_compiler < source.txt > compiled.rib
           echo "--- Compiled Ribbon ---"
