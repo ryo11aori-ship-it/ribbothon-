@@ -14,70 +14,70 @@ jobs:
       - name: Build Stage 1 Compiler
         run: |
           cat << 'EOF' > source_stage1.txt
-Z $OUT x
-I $CHAR x
-C $CHAR $EOF_CHECK x
-A $EOF_CHECK 1 x
-W $EOF_CHECK x
-C $CHAR $CMP x
-F $CMP 62 x
-A $OUT 49 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 60 x
-A $OUT 50 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 43 x
-A $OUT 51 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 45 x
-A $OUT 52 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 46 x
-A $OUT 53 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 44 x
-A $OUT 54 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 91 x
-A $OUT 55 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 93 x
-A $OUT 56 x
-P $OUT x
-Z $OUT x
-U x
-C $CHAR $CMP x
-F $CMP 120 x
-A $OUT 120 x
-P $OUT x
-Z $OUT x
-U x
-I $CHAR x
-C $CHAR $EOF_CHECK x
-A $EOF_CHECK 1 x
-E x
-EOF
+          Z $OUT x
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
+          W $EOF_CHECK x
+          C $CHAR $CMP x
+          F $CMP 62 x
+          A $OUT 49 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 60 x
+          A $OUT 50 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 43 x
+          A $OUT 51 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 45 x
+          A $OUT 52 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 46 x
+          A $OUT 53 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 44 x
+          A $OUT 54 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 91 x
+          A $OUT 55 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 93 x
+          A $OUT 56 x
+          P $OUT x
+          Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 120 x
+          A $OUT 120 x
+          P $OUT x
+          Z $OUT x
+          U x
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
+          E x
+          EOF
           ./meta_compiler < source_stage1.txt > stage1_compiler.rib
           echo -e "\n--- Stage 1 Compiler Execution Result ---"
           echo -n ">+<.-x" | ./ribbothon stage1_compiler.rib
