@@ -9,26 +9,26 @@ jobs:
       - name: Compile Tools
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
-          gcc -O3 meta_compiler4.c -o meta_compiler
+          gcc -O3 meta_compiler5.c -o meta_compiler
           
-      - name: Test Absolute Addressing
+      - name: Test Variable Symbols
         run: |
           cat << 'EOF' > source.txt
-          @0 99999 x
+          $VAL_H 99999 x
           99999 x
           99999 x
           99999 x
           9999 x
           
-          @1 9999 x
+          $VAL_I 9999 x
           99999 x
           99999 x
           99999 x
           99999 x
           3 x
           
-          @0 . x
-          @1 . x
+          $VAL_H . x
+          $VAL_I . x
           EOF
           ./meta_compiler < source.txt > compiled.rib
           echo "--- Compiled Ribbon ---"
