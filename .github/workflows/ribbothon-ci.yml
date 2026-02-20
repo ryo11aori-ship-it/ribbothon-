@@ -16,7 +16,7 @@ jobs:
           cat << 'EOF' > source.txt
           $COUNTER 99 x
           
-          W $COUNTER
+          W $COUNTER x
             $VAL_H 9999 x
             $VAL_I 9999 x
             $COUNTER - x
