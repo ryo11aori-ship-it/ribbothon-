@@ -9,24 +9,20 @@ jobs:
       - name: Compile Tools
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
-          gcc -O3 meta_compiler5.c -o meta_compiler
+          gcc -O3 meta_compiler6.c -o meta_compiler
           
-      - name: Test Variable Symbols
+      - name: Test Loop and Multiply
         run: |
           cat << 'EOF' > source.txt
-          $VAL_H 99999 x
-          99999 x
-          99999 x
-          99999 x
-          9999 x
+          $COUNTER 99 x
           
-          $VAL_I 9999 x
-          99999 x
-          99999 x
-          99999 x
-          99999 x
-          3 x
+          W $COUNTER
+            $VAL_H 9999 x
+            $VAL_I 9999 x
+            $COUNTER - x
+          E x
           
+          $VAL_I 3 x
           $VAL_H . x
           $VAL_I . x
           EOF
