@@ -12,7 +12,7 @@ else if(c == '.') out = '5';
 else if(c == ',') out = '6';
 else if(c == '[') out = '7';
 else if(c == ']') out = '8';
-else if((c >= '1' && c <= '9') || (c >= 'a' && c <= 'k')) out = (char)c;
+else if((c >= '0' && c <= '9') || (c >= 'a' && c <= 'k')) out = (char)c;
 else if(c == 'x' || c == 'X') {
 while(count % 5 != 0) {
 putchar('0');
