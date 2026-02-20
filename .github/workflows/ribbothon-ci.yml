@@ -9,15 +9,14 @@ jobs:
       - name: Compile Tools
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
-          gcc -O3 meta_compiler2.c -o meta_compiler
+          gcc -O3 meta_compiler4.c -o meta_compiler
           
-      - name: Test Dimensional Warp
+      - name: Test Absolute Addressing
         run: |
           cat << 'EOF' > source.txt
-          3 0 0 0 0   0 0 0 0 0   9 9 9 9 9 x
-          0 0 0 0 0   0 0 0 0 0   9 9 9 0 0 x
-          0 [ 9 0 0   0 0 0 0 0   - 0 0 0 ] x
-          - . + . x
+          @0 99999 99999 99999 99999 99990 x
+          @1 99999 99999 99999 99999 99993 x
+          @0 . @1 . x
           EOF
           ./meta_compiler < source.txt > compiled.rib
           echo "--- Compiled Ribbon ---"
