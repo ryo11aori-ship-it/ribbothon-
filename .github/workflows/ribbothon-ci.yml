@@ -11,42 +11,38 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Test Native Binary Emission (ELF Header)
+      - name: Build Native x86 Compiler in Ribbothon
         run: |
-          cat << 'EOF' > source_elf_emitter.txt
-          Z $OUT x
-          
-          A $OUT 127 x
-          P $OUT x
-          Z $OUT x
-          
-          A $OUT 69 x
-          P $OUT x
-          Z $OUT x
-          
-          A $OUT 76 x
-          P $OUT x
-          Z $OUT x
-          
-          A $OUT 70 x
-          P $OUT x
-          Z $OUT x
-          
-          A $OUT 2 x
-          P $OUT x
-          Z $OUT x
-          
-          A $OUT 1 x
-          P $OUT x
-          Z $OUT x
-          
-          A $OUT 1 x
-          P $OUT x
-          Z $OUT x
-          EOF
-          ./meta_compiler < source_elf_emitter.txt > elf_emitter.rib
-          echo -e "\n--- Emitting Raw Binary from pure Ribbothon ---"
-          ./ribbothon elf_emitter.rib > output.elf
-          
-          echo -e "\n--- Hexdump of the Generated Binary ---"
-          hexdump -C output.elf
+          cat << 'EOF' > source_x86_compiler.txt
+Z $OUT x
+I $CHAR x
+C $CHAR $EOF_CHECK x
+A $EOF_CHECK 1 x
+W $EOF_CHECK x
+C $CHAR $CMP x
+F $CMP 43 x
+A $OUT 254 x
+P $OUT x
+Z $OUT x
+A $OUT 7 x
+P $OUT x
+Z $OUT x
+U x
+C $CHAR $CMP x
+F $CMP 45 x
+A $OUT 254 x
+P $OUT x
+Z $OUT x
+A $OUT 15 x
+P $OUT x
+Z $OUT x
+U x
+I $CHAR x
+C $CHAR $EOF_CHECK x
+A $EOF_CHECK 1 x
+E x
+EOF
+          ./meta_compiler < source_x86_compiler.txt > x86_compiler.rib
+          echo -e "\n--- Compiling '+-+' to x86 Machine Code ---"
+          echo -n "+-+" | ./ribbothon x86_compiler.rib > output.bin
+          hexdump -C output.bin
