@@ -11,16 +11,16 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Build Native x86 Compiler in Ribbothon
+      - name: Build Pure Ribbothon Native Compiler
         run: |
-          cat << 'EOF' > source_x86_compiler.txt
+          cat << 'EOF' > source_pure_x86.txt
           Z $OUT x
           I $CHAR x
           C $CHAR $EOF_CHECK x
           A $EOF_CHECK 1 x
           W $EOF_CHECK x
           C $CHAR $CMP x
-          F $CMP 43 x
+          F $CMP 51 x
           A $OUT 254 x
           P $OUT x
           Z $OUT x
@@ -29,7 +29,7 @@ jobs:
           Z $OUT x
           U x
           C $CHAR $CMP x
-          F $CMP 45 x
+          F $CMP 52 x
           A $OUT 254 x
           P $OUT x
           Z $OUT x
@@ -42,7 +42,7 @@ jobs:
           A $EOF_CHECK 1 x
           E x
           EOF
-          ./meta_compiler < source_x86_compiler.txt > x86_compiler.rib
-          echo -e "\n--- Compiling '+-+' to x86 Machine Code ---"
-          echo -n "+-+" | ./ribbothon x86_compiler.rib > output.bin
+          ./meta_compiler < source_pure_x86.txt > pure_x86_compiler.rib
+          echo -e "\n--- Compiling pure ribbothon '343' to x86 Machine Code ---"
+          echo -n "343" | ./ribbothon pure_x86_compiler.rib > output.bin
           hexdump -C output.bin
