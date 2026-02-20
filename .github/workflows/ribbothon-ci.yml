@@ -11,14 +11,26 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Build Pure Ribbothon Native Compiler
+      - name: Build Pure Ribbothon Warp Compiler
         run: |
-          cat << 'EOF' > source_pure_x86.txt
+          cat << 'EOF' > source_warp_compiler.txt
           Z $OUT x
+          Z $CHAR_COUNT x
           I $CHAR x
           C $CHAR $EOF_CHECK x
           A $EOF_CHECK 1 x
           W $EOF_CHECK x
+          C $CHAR $CMP x
+          F $CMP 120 x
+          A $OUT 238 x
+          P $OUT x
+          Z $OUT x
+          Z $CHAR_COUNT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 48 x
+          A $CHAR_COUNT 1 x
+          U x
           C $CHAR $CMP x
           F $CMP 51 x
           A $OUT 254 x
@@ -27,22 +39,21 @@ jobs:
           A $OUT 7 x
           P $OUT x
           Z $OUT x
+          A $CHAR_COUNT 1 x
           U x
-          C $CHAR $CMP x
-          F $CMP 52 x
-          A $OUT 254 x
+          C $CHAR_COUNT $CMP x
+          F $CMP 5 x
+          A $OUT 255 x
           P $OUT x
           Z $OUT x
-          A $OUT 15 x
-          P $OUT x
-          Z $OUT x
+          Z $CHAR_COUNT x
           U x
           I $CHAR x
           C $CHAR $EOF_CHECK x
           A $EOF_CHECK 1 x
           E x
           EOF
-          ./meta_compiler < source_pure_x86.txt > pure_x86_compiler.rib
-          echo -e "\n--- Compiling pure ribbothon '343' to x86 Machine Code ---"
-          echo -n "343" | ./ribbothon pure_x86_compiler.rib > output.bin
+          ./meta_compiler < source_warp_compiler.txt > warp_compiler.rib
+          echo -e "\n--- Compiling '333333x' with Warp Logic ---"
+          echo -n "333333x" | ./ribbothon warp_compiler.rib > output.bin
           hexdump -C output.bin
