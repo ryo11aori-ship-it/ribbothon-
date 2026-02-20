@@ -9,29 +9,37 @@ jobs:
       - name: Compile Tools
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
-          gcc -O3 meta_compiler8.c -o meta_compiler
+          gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Test Math Abstraction
+      - name: Test Mini Compiler Bootstrap
         run: |
-          cat << 'EOF' > source_math.txt
-          Z $VAL_H x
-          A $VAL_H 72 x
-          P $VAL_H x
-          A $VAL_H 1 x
-          P $VAL_H x
-          EOF
-          ./meta_compiler < source_math.txt > compiled_math.rib
-          echo -e "--- Math Execution Result ---"
-          ./ribbothon compiled_math.rib
+          cat << 'EOF' > source_mini_compiler.txt
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
           
-      - name: Test IO (Echo Program)
-        run: |
-          cat << 'EOF' > source_io.txt
-          I $CHAR x
-          P $CHAR x
-          I $CHAR x
-          P $CHAR x
+          W $EOF_CHECK x
+            C $CHAR $CMP x
+            
+            F $CMP 43 x
+              A $OUT 51 x
+              P $OUT x
+              Z $OUT x
+            U x
+            
+            C $CHAR $CMP x
+            
+            F $CMP 45 x
+              A $OUT 52 x
+              P $OUT x
+              Z $OUT x
+            U x
+            
+            I $CHAR x
+            C $CHAR $EOF_CHECK x
+            A $EOF_CHECK 1 x
+          E x
           EOF
-          ./meta_compiler < source_io.txt > compiled_io.rib
-          echo -e "\n\n--- I/O Execution Result ---"
-          echo -n "HI" | ./ribbothon compiled_io.rib
+          ./meta_compiler < source_mini_compiler.txt > compiled_mini_compiler.rib
+          echo -e "\n--- Mini Compiler Execution Result ---"
+          echo -n "+--+" | ./ribbothon compiled_mini_compiler.rib
