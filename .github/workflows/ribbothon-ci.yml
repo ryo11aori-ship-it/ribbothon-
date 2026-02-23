@@ -11,49 +11,59 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Build Pure Ribbothon Warp Compiler
+      - name: Generate Direct OS Executable (ELF64)
         run: |
-          cat << 'EOF' > source_warp_compiler.txt
+          cat << 'EOF' > source_elf.txt
           Z $OUT x
-          Z $CHAR_COUNT x
-          I $CHAR x
-          C $CHAR $EOF_CHECK x
-          A $EOF_CHECK 1 x
-          W $EOF_CHECK x
-          C $CHAR $CMP x
-          F $CMP 120 x
-          A $OUT 238 x
-          P $OUT x
-          Z $OUT x
-          Z $CHAR_COUNT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 48 x
-          A $CHAR_COUNT 1 x
-          U x
-          C $CHAR $CMP x
-          F $CMP 51 x
-          A $OUT 254 x
-          P $OUT x
-          Z $OUT x
-          A $OUT 7 x
-          P $OUT x
-          Z $OUT x
-          A $CHAR_COUNT 1 x
-          U x
-          C $CHAR_COUNT $CMP x
-          F $CMP 5 x
-          A $OUT 255 x
-          P $OUT x
-          Z $OUT x
-          Z $CHAR_COUNT x
-          U x
-          I $CHAR x
-          C $CHAR $EOF_CHECK x
-          A $EOF_CHECK 1 x
-          E x
+          A $OUT 127 x P $OUT x Z $OUT x
+          A $OUT 69 x P $OUT x Z $OUT x
+          A $OUT 76 x P $OUT x Z $OUT x
+          A $OUT 70 x P $OUT x Z $OUT x
+          A $OUT 2 x P $OUT x Z $OUT x
+          A $OUT 1 x P $OUT x Z $OUT x
+          A $OUT 1 x P $OUT x Z $OUT x
+          P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 2 x P $OUT x Z $OUT x P $OUT x
+          A $OUT 62 x P $OUT x Z $OUT x P $OUT x
+          A $OUT 1 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 120 x P $OUT x Z $OUT x P $OUT x
+          A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          P $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 64 x P $OUT x Z $OUT x P $OUT x
+          A $OUT 56 x P $OUT x Z $OUT x P $OUT x
+          A $OUT 1 x P $OUT x Z $OUT x P $OUT x
+          A $OUT 64 x P $OUT x Z $OUT x P $OUT x
+          P $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 1 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 5 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
+          P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          P $OUT x P $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          P $OUT x P $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 132 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 132 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 184 x P $OUT x Z $OUT x A $OUT 60 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 191 x P $OUT x Z $OUT x A $OUT 42 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
           EOF
-          ./meta_compiler < source_warp_compiler.txt > warp_compiler.rib
-          echo -e "\n--- Compiling '333333x' with Warp Logic ---"
-          echo -n "333333x" | ./ribbothon warp_compiler.rib > output.bin
-          hexdump -C output.bin
+          ./meta_compiler < source_elf.txt > make_elf.rib
+          
+          echo -e "\n--- Generating Native Executable from pure Ribbothon ---"
+          ./ribbothon make_elf.rib > pure_native.exe
+          
+          echo -e "\n--- Hexdump of pure_native.exe ---"
+          hexdump -C pure_native.exe
+          
+          echo -e "\n--- Executing pure_native.exe Directly on OS! ---"
+          chmod +x pure_native.exe
+          
+          # GitHub Actionsがエラー42で止まらないようにエラーハンドリングを一時解除
+          set +e
+          ./pure_native.exe
+          RET=$?
+          set -e
+          
+          echo -e "\n--- OS Return Code ---"
+          echo "Status: $RET"
