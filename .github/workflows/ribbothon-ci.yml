@@ -95,8 +95,11 @@ jobs:
           echo -e "\n--- Step 3: Executing Native Executable (Feeding 'R' as Input) ---"
           chmod +x my_app.exe
           
+          # GitHub Actionsがエラー42で止まらないようにエラーハンドリングを一時解除（ここを復元！）
+          set +e
           echo -n "R" | ./my_app.exe > result.txt
           RET=$?
+          set -e
           
           echo -e "\n--- Output from Native Executable ---"
           cat result.txt
