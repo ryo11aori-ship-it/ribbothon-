@@ -11,7 +11,7 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Build The Ultimate Native Compiler
+      - name: Build The Ultimate Native Compiler (Patched for OS Memory)
         run: |
           cat << 'EOF' > source_ultimate_aot.txt
           Z $OUT x
@@ -37,13 +37,14 @@ jobs:
           A $OUT 64 x P $OUT x Z $OUT x P $OUT x
           P $OUT x P $OUT x P $OUT x P $OUT x
           A $OUT 1 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 5 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 7 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x P $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x P $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          A $OUT 191 x P $OUT x Z $OUT x P $OUT x A $OUT 8 x P $OUT x Z $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x
           I $CHAR x
           C $CHAR $EOF_CHECK x
           A $EOF_CHECK 1 x
@@ -77,10 +78,8 @@ jobs:
           
           echo -e "\n--- Step 3: Executing the Native Executable Directly! ---"
           chmod +x my_app.exe
-          set +e
           ./my_app.exe
           RET=$?
-          set -e
           
           echo -e "\n--- OS Return Code (Expected 42) ---"
           echo "Status: $RET"
