@@ -17,13 +17,12 @@ jobs:
           with open('source_ultimate_aot.txt', 'w') as f:
               f.write('Z $OUT x\nZ $PC x\nZ $SP x\n')
               
-              # バッファへの書き込みを行う巨大なスイッチマクロ（0〜4000バイト分）
               f.write('Z $TARGET_VAL x\nZ $TARGET_IDX x\n')
-              # ※今回はテストとして先頭の数バイト分だけ展開（後で全展開します）
-              for i in range(150):
-                  f.write(f'C $TARGET_IDX $CMP x\nF $CMP {i} x\n  C $TARGET_VAL $BUF_{i} x\nU x\n')
               
-              # メインのコンパイルロジック
+              # f-stringを使わず、安全な .format() とエスケープを使う
+              for i in range(150):
+                  f.write('C $TARGET_IDX $CMP x\nF $CMP {0} x\n  C $TARGET_VAL $BUF_{0} x\nU x\n'.format(i))
+              
               f.write('''
               I $CHAR x
               C $CHAR $EOF_CHECK x
@@ -31,21 +30,21 @@ jobs:
               W $EOF_CHECK x
               
               C $CHAR $CMP x
-              F $CMP 51 x  # '3' (+) のコンパイル
-                # バッファの $PC 番地に 0xFE を書き込む
+              F $CMP 51 x
                 A $TARGET_VAL 254 x C $PC $TARGET_IDX x
               ''')
-              # ここに書き込みマクロを呼び出す（今回は直書き）
+              
               for i in range(150):
-                  f.write(f'C $TARGET_IDX $CMP x F $CMP {i} x C $TARGET_VAL $BUF_{i} x U x\n')
+                  f.write('C $TARGET_IDX $CMP x F $CMP {0} x C $TARGET_VAL $BUF_{0} x U x\n'.format(i))
+              
               f.write('''
                 A $PC 1 x
-                
-                # バッファの $PC 番地に 0x07 を書き込む
                 Z $TARGET_VAL x A $TARGET_VAL 7 x C $PC $TARGET_IDX x
               ''')
+              
               for i in range(150):
-                  f.write(f'C $TARGET_IDX $CMP x F $CMP {i} x C $TARGET_VAL $BUF_{i} x U x\n')
+                  f.write('C $TARGET_IDX $CMP x F $CMP {0} x C $TARGET_VAL $BUF_{0} x U x\n'.format(i))
+              
               f.write('''
                 A $PC 1 x
               U x
@@ -55,21 +54,20 @@ jobs:
               A $EOF_CHECK 1 x
               E x
               
-              # 最後にバッファを一気に出力する
               Z $PRINT_IDX x
-              W 1 x # ダミーループ（実際は $PC までループ）
+              W 1 x
               ''')
+              
               for i in range(150):
-                  f.write(f'C $PRINT_IDX $CMP x F $CMP {i} x P $BUF_{i} x U x\n')
+                  f.write('C $PRINT_IDX $CMP x F $CMP {0} x P $BUF_{0} x U x\n'.format(i))
+              
               f.write('''
                 A $PRINT_IDX 1 x
                 C $PRINT_IDX $CMP x
-                # PCに達したら終了するロジック（簡略化）
               E x
               ''')
           "
           
-          # ちゃんとPythonがスクリプトを吐き出せたか確認
           head -n 20 source_ultimate_aot.txt
           echo "..."
           tail -n 20 source_ultimate_aot.txt
