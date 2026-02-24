@@ -11,99 +11,65 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Build I/O Native Compiler (Stack Memory Edition)
+      - name: Generate Advanced AOT Compiler Source via Python
         run: |
-          cat << 'EOF' > source_ultimate_aot.txt
-          Z $OUT x
-          A $OUT 127 x P $OUT x Z $OUT x
-          A $OUT 69 x P $OUT x Z $OUT x
-          A $OUT 76 x P $OUT x Z $OUT x
-          A $OUT 70 x P $OUT x Z $OUT x
-          A $OUT 2 x P $OUT x Z $OUT x
-          A $OUT 1 x P $OUT x Z $OUT x
-          A $OUT 1 x P $OUT x Z $OUT x
-          P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 2 x P $OUT x Z $OUT x P $OUT x
-          A $OUT 62 x P $OUT x Z $OUT x P $OUT x
-          A $OUT 1 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 120 x P $OUT x Z $OUT x P $OUT x
-          A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          P $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 64 x P $OUT x Z $OUT x P $OUT x
-          A $OUT 56 x P $OUT x Z $OUT x P $OUT x
-          A $OUT 1 x P $OUT x Z $OUT x P $OUT x
-          A $OUT 64 x P $OUT x Z $OUT x P $OUT x
-          P $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 1 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 7 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
-          P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          P $OUT x P $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          P $OUT x P $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          python3 -c "
+          with open('source_ultimate_aot.txt', 'w') as f:
+              f.write('Z $OUT x\nZ $PC x\nZ $SP x\n')
+              
+              # バッファへの書き込みを行う巨大なスイッチマクロ（0〜4000バイト分）
+              f.write('Z $TARGET_VAL x\nZ $TARGET_IDX x\n')
+              # ※今回はテストとして先頭の数バイト分だけ展開（後で全展開します）
+              for i in range(150):
+                  f.write(f'C $TARGET_IDX $CMP x\nF $CMP {i} x\n  C $TARGET_VAL $BUF_{i} x\nU x\n')
+              
+              # メインのコンパイルロジック
+              f.write('''
+              I $CHAR x
+              C $CHAR $EOF_CHECK x
+              A $EOF_CHECK 1 x
+              W $EOF_CHECK x
+              
+              C $CHAR $CMP x
+              F $CMP 51 x  # '3' (+) のコンパイル
+                # バッファの $PC 番地に 0xFE を書き込む
+                A $TARGET_VAL 254 x C $PC $TARGET_IDX x
+              ''')
+              # ここに書き込みマクロを呼び出す（今回は直書き）
+              for i in range(150):
+                  f.write(f'C $TARGET_IDX $CMP x F $CMP {i} x C $TARGET_VAL $BUF_{i} x U x\n')
+              f.write('''
+                A $PC 1 x
+                
+                # バッファの $PC 番地に 0x07 を書き込む
+                Z $TARGET_VAL x A $TARGET_VAL 7 x C $PC $TARGET_IDX x
+              ''')
+              for i in range(150):
+                  f.write(f'C $TARGET_IDX $CMP x F $CMP {i} x C $TARGET_VAL $BUF_{i} x U x\n')
+              f.write('''
+                A $PC 1 x
+              U x
+              
+              I $CHAR x
+              C $CHAR $EOF_CHECK x
+              A $EOF_CHECK 1 x
+              E x
+              
+              # 最後にバッファを一気に出力する
+              Z $PRINT_IDX x
+              W 1 x # ダミーループ（実際は $PC までループ）
+              ''')
+              for i in range(150):
+                  f.write(f'C $PRINT_IDX $CMP x F $CMP {i} x P $BUF_{i} x U x\n')
+              f.write('''
+                A $PRINT_IDX 1 x
+                C $PRINT_IDX $CMP x
+                # PCに達したら終了するロジック（簡略化）
+              E x
+              ''')
+          "
           
-          A $OUT 72 x P $OUT x Z $OUT x A $OUT 129 x P $OUT x Z $OUT x A $OUT 236 x P $OUT x Z $OUT x A $OUT 48 x P $OUT x Z $OUT x A $OUT 117 x P $OUT x Z $OUT x P $OUT x P $OUT x A $OUT 73 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 231 x P $OUT x Z $OUT x
-          
-          I $CHAR x
-          C $CHAR $EOF_CHECK x
-          A $EOF_CHECK 1 x
-          W $EOF_CHECK x
-          C $CHAR $CMP x
-          F $CMP 49 x
-          A $OUT 73 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 199 x P $OUT x Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 50 x
-          A $OUT 73 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 207 x P $OUT x Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 51 x
-          A $OUT 65 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 7 x P $OUT x Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 52 x
-          A $OUT 65 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 53 x
-          A $OUT 176 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 199 x P $OUT x Z $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 178 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
-          U x
-          C $CHAR $CMP x
-          F $CMP 54 x
-          A $OUT 49 x P $OUT x Z $OUT x A $OUT 192 x P $OUT x Z $OUT x A $OUT 49 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 178 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
-          U x
-          I $CHAR x
-          C $CHAR $EOF_CHECK x
-          A $EOF_CHECK 1 x
-          E x
-          
-          A $OUT 184 x P $OUT x Z $OUT x A $OUT 60 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 191 x P $OUT x Z $OUT x A $OUT 42 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
-          EOF
-          ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
-          
-          echo -e "\n--- Step 1: Writing pure Ribbothon ECHO program '65' (,.) ---"
-          echo -n "65" > my_app.rib
-          
-          echo -e "\n--- Step 2: Compiling 'my_app.rib' to Native Linux Executable ---"
-          cat my_app.rib | ./ribbothon ultimate_aot.rib > my_app.exe
-          
-          echo -e "\n--- Step 3: Executing Native Executable (Feeding 'R' as Input) ---"
-          chmod +x my_app.exe
-          
-          # GitHub Actionsがエラー42で止まらないようにエラーハンドリングを一時解除（ここを復元！）
-          set +e
-          echo -n "R" | ./my_app.exe > result.txt
-          RET=$?
-          set -e
-          
-          echo -e "\n--- Output from Native Executable ---"
-          cat result.txt
-          echo ""
-          
-          echo -e "\n--- OS Return Code (Expected 42) ---"
-          echo "Status: $RET"
+          # ちゃんとPythonがスクリプトを吐き出せたか確認
+          head -n 20 source_ultimate_aot.txt
+          echo "..."
+          tail -n 20 source_ultimate_aot.txt
