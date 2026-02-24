@@ -11,7 +11,7 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Build I/O Native Compiler (Fixed Pointers)
+      - name: Build I/O Native Compiler (Rock Solid Pointers)
         run: |
           cat << 'EOF' > source_ultimate_aot.txt
           Z $OUT x
@@ -44,39 +44,44 @@ jobs:
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          
+          Z $OUT x
           A $OUT 73 x P $OUT x Z $OUT x A $OUT 191 x P $OUT x Z $OUT x P $OUT x A $OUT 8 x P $OUT x Z $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x
+          A $OUT 77 x P $OUT x Z $OUT x A $OUT 49 x P $OUT x Z $OUT x A $OUT 246 x P $OUT x Z $OUT x
+          
           I $CHAR x
           C $CHAR $EOF_CHECK x
           A $EOF_CHECK 1 x
           W $EOF_CHECK x
           C $CHAR $CMP x
           F $CMP 49 x
-          A $OUT 73 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 199 x P $OUT x Z $OUT x
+          A $OUT 73 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 198 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 50 x
-          A $OUT 73 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 207 x P $OUT x Z $OUT x
+          A $OUT 73 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 206 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 51 x
-          A $OUT 65 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 7 x P $OUT x Z $OUT x
+          A $OUT 66 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 4 x P $OUT x Z $OUT x A $OUT 55 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 52 x
-          A $OUT 65 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x
+          A $OUT 66 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 12 x P $OUT x Z $OUT x A $OUT 55 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 53 x
-          A $OUT 176 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 191 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 178 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
+          A $OUT 176 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 191 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 246 x P $OUT x Z $OUT x A $OUT 178 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 54 x
-          A $OUT 48 x P $OUT x Z $OUT x A $OUT 192 x P $OUT x Z $OUT x A $OUT 49 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 178 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
+          A $OUT 48 x P $OUT x Z $OUT x A $OUT 192 x P $OUT x Z $OUT x A $OUT 49 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 246 x P $OUT x Z $OUT x A $OUT 178 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
           U x
           I $CHAR x
           C $CHAR $EOF_CHECK x
           A $EOF_CHECK 1 x
           E x
+          
           A $OUT 184 x P $OUT x Z $OUT x A $OUT 60 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
           A $OUT 191 x P $OUT x Z $OUT x A $OUT 42 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
           A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
