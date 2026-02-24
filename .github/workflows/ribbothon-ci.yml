@@ -11,7 +11,7 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Generate Turing-Complete AOT Compiler (No Buffer Overflow Edition)
+      - name: Generate Turing-Complete AOT Compiler (Perfect REX Edition)
         run: |
           cat << 'EOF' > generate.py
           import sys
@@ -41,7 +41,7 @@ jobs:
           
           post_code = [
               0xb8, 0x3c, 0x00, 0x00, 0x00,
-              0xbf, 0x00, 0x00, 0x00, 0x00,
+              0xbf, 0x2a, 0x00, 0x00, 0x00, # exit(42) に戻しました！
               0x0f, 0x05
           ]
           
@@ -53,24 +53,28 @@ jobs:
               
               f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x W $EOF_CHECK x\n")
               
+              # ポインタ移動 (49)
               f.write("C $CMP $CHAR x F $CMP 49 x\n" + emit_bytes([0x49, 0xFF, 0xC6]) + "U x\n")
               f.write("C $CMP $CHAR x F $CMP 50 x\n" + emit_bytes([0x49, 0xFF, 0xCE]) + "U x\n")
-              f.write("C $CMP $CHAR x F $CMP 51 x\n" + emit_bytes([0x41, 0xFE, 0x04, 0x37]) + "U x\n")
-              f.write("C $CMP $CHAR x F $CMP 52 x\n" + emit_bytes([0x41, 0xFE, 0x0C, 0x37]) + "U x\n")
-              f.write("C $CMP $CHAR x F $CMP 53 x\n" + emit_bytes([0xB0, 0x01, 0xBF, 0x01, 0x00, 0x00, 0x00, 0x4F, 0x8D, 0x34, 0x37, 0xB2, 0x01, 0x0F, 0x05]) + "U x\n")
-              f.write("C $CMP $CHAR x F $CMP 54 x\n" + emit_bytes([0x30, 0xC0, 0x31, 0xFF, 0x4F, 0x8D, 0x34, 0x37, 0xB2, 0x01, 0x0F, 0x05]) + "U x\n")
               
-              # 7: [ (ループ開始)
+              # メモリ操作 (41 -> 43 に修正)
+              f.write("C $CMP $CHAR x F $CMP 51 x\n" + emit_bytes([0x43, 0xFE, 0x04, 0x37]) + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 52 x\n" + emit_bytes([0x43, 0xFE, 0x0C, 0x37]) + "U x\n")
+              
+              # I/Oシステムコール (4F -> 4B に修正)
+              f.write("C $CMP $CHAR x F $CMP 53 x\n" + emit_bytes([0xB0, 0x01, 0xBF, 0x01, 0x00, 0x00, 0x00, 0x4B, 0x8D, 0x34, 0x37, 0xB2, 0x01, 0x0F, 0x05]) + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 54 x\n" + emit_bytes([0x30, 0xC0, 0x31, 0xFF, 0x4B, 0x8D, 0x34, 0x37, 0xB2, 0x01, 0x0F, 0x05]) + "U x\n")
+              
+              # 7: [ (ループ開始 - 41 -> 43 に修正)
               f.write("C $CMP $CHAR x F $CMP 55 x\n")
               f.write("A $IN_LOOP 1 x Z $BODY_SIZE x\n")
-              f.write(emit_bytes([0x41, 0x80, 0x3C, 0x37, 0x00, 0x0F, 0x84, 0x75, 0x00, 0x00, 0x00], track=False))
+              f.write(emit_bytes([0x43, 0x80, 0x3C, 0x37, 0x00, 0x0F, 0x84, 0x75, 0x00, 0x00, 0x00], track=False))
               f.write("U x\n")
               
-              # 8: ] (ループ終了とNOPパディング)
+              # 8: ] (ループ終了とNOPパディング - 41 -> 43 に修正)
               f.write("C $CMP $CHAR x F $CMP 56 x\n")
-              # BODY_SIZEが106になるまで0x90(144)を出力して水増し
               f.write("W 1 x C $CMP $BODY_SIZE x F $CMP 106 x E x Z $OUT x A $OUT 144 x P $OUT x A $BODY_SIZE 1 x U x\n")
-              f.write(emit_bytes([0x41, 0x80, 0x3C, 0x37, 0x00, 0x0F, 0x85, 0x8B, 0xFF, 0xFF, 0xFF], track=False))
+              f.write(emit_bytes([0x43, 0x80, 0x3C, 0x37, 0x00, 0x0F, 0x85, 0x8B, 0xFF, 0xFF, 0xFF], track=False))
               f.write("Z $IN_LOOP x\n")
               f.write("U x\n")
               
