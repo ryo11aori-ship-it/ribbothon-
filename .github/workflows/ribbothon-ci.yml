@@ -11,68 +11,119 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Generate Advanced AOT Compiler Source via Python
+      - name: Generate Ultimate Turing-Complete AOT Compiler
         run: |
-          # 'EOF' をシングルクォートで囲むことでBashの変数展開($)を完全無効化！
           cat << 'EOF' > generate.py
+          import sys
+          buf_size = 500
+          
+          write_macro = "".join([f"C $CMP $TARGET_IDX x F $CMP {i} x C $BUF_{i} $TARGET_VAL x U x\n" for i in range(buf_size)])
+          
+          def emit_list(vals):
+              res = ""
+              for val in vals:
+                  res += f"Z $TARGET_VAL x A $TARGET_VAL {val} x C $TARGET_IDX $PC x\n"
+                  res += write_macro
+                  res += "A $PC 1 x\n"
+              return res
+          
+          stack_push = "".join([f"C $CMP $SP x F $CMP {i} x C $STACK_{i} $PC x U x\n" for i in range(20)]) + "A $SP 1 x\n"
+          stack_pop = "F $SP 1 x\n" + "".join([f"C $CMP $SP x F $CMP {i} x C $SAVED_PC $STACK_{i} x U x\n" for i in range(20)])
+          
+          elf_bytes = [
+              0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x02, 0x00, 0x3e, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x38, 0x00, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x01, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x48, 0x81, 0xec, 0x30, 0x75, 0x00, 0x00,
+              0x49, 0x89, 0xe7,
+              0x4d, 0x31, 0xf6
+          ]
+          
+          post_code = [
+              0xb8, 0x3c, 0x00, 0x00, 0x00,
+              0xbf, 0x00, 0x00, 0x00, 0x00, # exit(0)
+              0x0f, 0x05
+          ]
+          
           with open('source_ultimate_aot.txt', 'w') as f:
-              f.write("Z $OUT x\nZ $PC x\nZ $SP x\n")
+              f.write("Z $OUT x Z $PC x Z $SP x\n")
               
-              f.write("Z $TARGET_VAL x\nZ $TARGET_IDX x\n")
+              # 直接出力するELFヘッダ
+              for b in elf_bytes:
+                  f.write(f"Z $OUT x A $OUT {b} x P $OUT x\n")
               
-              # バッファ書き込みマクロ（とりあえず150バイト分テスト）
-              for i in range(150):
-                  f.write(f"C $TARGET_IDX $CMP x\nF $CMP {i} x\n  C $TARGET_VAL $BUF_{i} x\nU x\n")
+              f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x W $EOF_CHECK x\n")
               
-              f.write("""
-              I $CHAR x
-              C $CHAR $EOF_CHECK x
-              A $EOF_CHECK 1 x
-              W $EOF_CHECK x
+              # 1: > (inc r14)
+              f.write("C $CMP $CHAR x F $CMP 49 x\n" + emit_list([0x49, 0xFF, 0xC6]) + "U x\n")
+              # 2: < (dec r14)
+              f.write("C $CMP $CHAR x F $CMP 50 x\n" + emit_list([0x49, 0xFF, 0xCE]) + "U x\n")
+              # 3: + (inc byte [r15+r14])
+              f.write("C $CMP $CHAR x F $CMP 51 x\n" + emit_list([0x41, 0xFE, 0x04, 0x37]) + "U x\n")
+              # 4: - (dec byte [r15+r14])
+              f.write("C $CMP $CHAR x F $CMP 52 x\n" + emit_list([0x41, 0xFE, 0x0C, 0x37]) + "U x\n")
+              # 5: . (write sys call)
+              f.write("C $CMP $CHAR x F $CMP 53 x\n" + emit_list([0xB0, 0x01, 0xBF, 0x01, 0x00, 0x00, 0x00, 0x4F, 0x8D, 0x34, 0x37, 0xB2, 0x01, 0x0F, 0x05]) + "U x\n")
+              # 6: , (read sys call)
+              f.write("C $CMP $CHAR x F $CMP 54 x\n" + emit_list([0x30, 0xC0, 0x31, 0xFF, 0x4F, 0x8D, 0x34, 0x37, 0xB2, 0x01, 0x0F, 0x05]) + "U x\n")
               
-              C $CHAR $CMP x
-              F $CMP 51 x
-                A $TARGET_VAL 254 x C $PC $TARGET_IDX x
-              """)
+              # 7: [ (ループ開始：jz + PCスタックプッシュ)
+              f.write("C $CMP $CHAR x F $CMP 55 x\n")
+              f.write(emit_list([0x41, 0x80, 0x3C, 0x37, 0x00, 0x0F, 0x84]))
+              f.write(stack_push)
+              f.write(emit_list([0x00, 0x00, 0x00, 0x00])) # 仮の距離
+              f.write("U x\n")
               
-              for i in range(150):
-                  f.write(f"C $TARGET_IDX $CMP x F $CMP {i} x C $TARGET_VAL $BUF_{i} x U x\n")
+              # 8: ] (ループ終了：jnz + バックパッチング)
+              f.write("C $CMP $CHAR x F $CMP 56 x\n")
+              f.write(emit_list([0x41, 0x80, 0x3C, 0x37, 0x00, 0x0F, 0x85]))
+              f.write(stack_pop)
+              # 前方へのジャンプ距離を過去のバッファに書き込む (PC - SAVED_PC)
+              f.write("C $TARGET_IDX $SAVED_PC x C $TARGET_VAL $PC x F $TARGET_VAL $SAVED_PC x\n")
+              f.write(write_macro)
+              # 後方へのジャンプ距離を計算して出力 (PC + 11 - SAVED_PC を2の補数に)
+              f.write("C $DIST_BACK $PC x A $DIST_BACK 11 x F $DIST_BACK $SAVED_PC x\n")
+              f.write("Z $TARGET_VAL x A $TARGET_VAL 256 x F $TARGET_VAL $DIST_BACK x\n")
+              f.write("C $TARGET_IDX $PC x\n")
+              f.write(write_macro)
+              f.write("A $PC 1 x\n")
+              f.write(emit_list([255, 255, 255])) # 上位3バイトは -1
+              f.write("U x\n")
               
-              f.write("""
-                A $PC 1 x
-                Z $TARGET_VAL x A $TARGET_VAL 7 x C $PC $TARGET_IDX x
-              """)
+              f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x E x\n")
               
-              for i in range(150):
-                  f.write(f"C $TARGET_IDX $CMP x F $CMP {i} x C $TARGET_VAL $BUF_{i} x U x\n")
+              # メモリバッファを一気に出力
+              f.write("Z $PRINT_IDX x\n")
+              f.write("C $MORE $PC x F $MORE $PRINT_IDX x W $MORE x\n")
+              for i in range(buf_size):
+                  f.write(f"C $CMP $PRINT_IDX x F $CMP {i} x Z $OUT x A $OUT $BUF_{i} x P $OUT x U x\n")
+              f.write("A $PRINT_IDX 1 x\n")
+              f.write("C $MORE $PC x F $MORE $PRINT_IDX x E x\n")
               
-              f.write("""
-                A $PC 1 x
-              U x
-              
-              I $CHAR x
-              C $CHAR $EOF_CHECK x
-              A $EOF_CHECK 1 x
-              E x
-              
-              Z $PRINT_IDX x
-              W 1 x
-              """)
-              
-              for i in range(150):
-                  f.write(f"C $PRINT_IDX $CMP x F $CMP {i} x P $BUF_{i} x U x\n")
-              
-              f.write("""
-                A $PRINT_IDX 1 x
-                C $PRINT_IDX $CMP x
-              E x
-              """)
+              # 直接出力する終了コード
+              for b in post_code:
+                  f.write(f"Z $OUT x A $OUT {b} x P $OUT x\n")
           EOF
           
-          # 生成した安全なPythonスクリプトを実行
           python3 generate.py
+          ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
           
-          # 結果確認
-          head -n 20 source_ultimate_aot.txt
-          echo "..."
-          tail -n 20 source_ultimate_aot.txt
+          echo -e "\n--- Step 1: Writing pure Ribbothon Loop Program 'A' ---"
+          # ++++++[>++++++++++<-]>+++++.
+          echo -n "3333337133333333332481333335" > my_app.rib
+          
+          echo -e "\n--- Step 2: Compiling 'my_app.rib' to Native Linux Executable ---"
+          cat my_app.rib | ./ribbothon ultimate_aot.rib > my_app.exe
+          
+          echo -e "\n--- Step 3: Executing the Native Turing-Complete Executable! ---"
+          chmod +x my_app.exe
+          ./my_app.exe > result.txt
+          
+          echo -e "\n--- Output from Executable ---"
+          cat result.txt
+          echo ""
