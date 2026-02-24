@@ -11,7 +11,7 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Build I/O Native Compiler
+      - name: Build I/O Native Compiler (Fixed Pointers)
         run: |
           cat << 'EOF' > source_ultimate_aot.txt
           Z $OUT x
@@ -44,34 +44,34 @@ jobs:
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 191 x P $OUT x Z $OUT x P $OUT x A $OUT 8 x P $OUT x Z $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x
+          A $OUT 73 x P $OUT x Z $OUT x A $OUT 191 x P $OUT x Z $OUT x P $OUT x A $OUT 8 x P $OUT x Z $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x
           I $CHAR x
           C $CHAR $EOF_CHECK x
           A $EOF_CHECK 1 x
           W $EOF_CHECK x
           C $CHAR $CMP x
           F $CMP 49 x
-          A $OUT 72 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 199 x P $OUT x Z $OUT x
+          A $OUT 73 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 199 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 50 x
-          A $OUT 72 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 207 x P $OUT x Z $OUT x
+          A $OUT 73 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 207 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 51 x
-          A $OUT 254 x P $OUT x Z $OUT x A $OUT 7 x P $OUT x Z $OUT x
+          A $OUT 65 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 7 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 52 x
-          A $OUT 254 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x
+          A $OUT 65 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 53 x
-          A $OUT 87 x P $OUT x Z $OUT x A $OUT 72 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 106 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 95 x P $OUT x Z $OUT x A $OUT 106 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 90 x P $OUT x Z $OUT x A $OUT 106 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 88 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x A $OUT 95 x P $OUT x Z $OUT x
+          A $OUT 176 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 191 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 178 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
           U x
           C $CHAR $CMP x
           F $CMP 54 x
-          A $OUT 87 x P $OUT x Z $OUT x A $OUT 72 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 49 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 106 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 90 x P $OUT x Z $OUT x A $OUT 49 x P $OUT x Z $OUT x A $OUT 192 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x A $OUT 95 x P $OUT x Z $OUT x
+          A $OUT 48 x P $OUT x Z $OUT x A $OUT 192 x P $OUT x Z $OUT x A $OUT 49 x P $OUT x Z $OUT x A $OUT 255 x P $OUT x Z $OUT x A $OUT 76 x P $OUT x Z $OUT x A $OUT 137 x P $OUT x Z $OUT x A $OUT 254 x P $OUT x Z $OUT x A $OUT 178 x P $OUT x Z $OUT x A $OUT 1 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
           U x
           I $CHAR x
           C $CHAR $EOF_CHECK x
@@ -91,8 +91,16 @@ jobs:
           
           echo -e "\n--- Step 3: Executing Native Executable (Feeding 'R' as Input) ---"
           chmod +x my_app.exe
+          
+          # GitHub Actionsがエラー42で止まらないようにエラーハンドリングを一時解除
+          set +e
           echo -n "R" | ./my_app.exe > result.txt
+          RET=$?
+          set -e
           
           echo -e "\n--- Output from Native Executable ---"
           cat result.txt
           echo ""
+          
+          echo -e "\n--- OS Return Code (Expected 42) ---"
+          echo "Status: $RET"
