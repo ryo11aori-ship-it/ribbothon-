@@ -11,9 +11,9 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Generate Direct OS Executable (ELF64)
+      - name: Build The Ultimate Native Compiler
         run: |
-          cat << 'EOF' > source_elf.txt
+          cat << 'EOF' > source_ultimate_aot.txt
           Z $OUT x
           A $OUT 127 x P $OUT x Z $OUT x
           A $OUT 69 x P $OUT x Z $OUT x
@@ -41,29 +41,46 @@ jobs:
           P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x P $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x P $OUT x A $OUT 64 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 132 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
-          A $OUT 132 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
           P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          P $OUT x A $OUT 16 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x P $OUT x
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
+          W $EOF_CHECK x
+          C $CHAR $CMP x
+          F $CMP 51 x
+          A $OUT 254 x P $OUT x Z $OUT x A $OUT 7 x P $OUT x Z $OUT x
+          U x
+          C $CHAR $CMP x
+          F $CMP 52 x
+          A $OUT 254 x P $OUT x Z $OUT x A $OUT 15 x P $OUT x Z $OUT x
+          U x
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
+          E x
           A $OUT 184 x P $OUT x Z $OUT x A $OUT 60 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
           A $OUT 191 x P $OUT x Z $OUT x A $OUT 42 x P $OUT x Z $OUT x P $OUT x P $OUT x P $OUT x
           A $OUT 15 x P $OUT x Z $OUT x A $OUT 5 x P $OUT x Z $OUT x
           EOF
-          ./meta_compiler < source_elf.txt > make_elf.rib
+          ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
           
-          echo -e "\n--- Generating Native Executable from pure Ribbothon ---"
-          ./ribbothon make_elf.rib > pure_native.exe
+          echo -e "\n--- Step 1: Writing pure Ribbothon program '3343' ---"
+          echo -n "3343" > my_app.rib
           
-          echo -e "\n--- Hexdump of pure_native.exe ---"
-          hexdump -C pure_native.exe
+          echo -e "\n--- Step 2: Compiling 'my_app.rib' to Native Linux Executable using Ultimate AOT Compiler ---"
+          cat my_app.rib | ./ribbothon ultimate_aot.rib > my_app.exe
           
-          echo -e "\n--- Executing pure_native.exe Directly on OS! ---"
-          chmod +x pure_native.exe
+          echo -e "\n--- Hexdump of Generated Native Executable (my_app.exe) ---"
+          hexdump -C my_app.exe
           
-          # GitHub Actionsがエラー42で止まらないようにエラーハンドリングを一時解除
+          echo -e "\n--- Step 3: Executing the Native Executable Directly! ---"
+          chmod +x my_app.exe
           set +e
-          ./pure_native.exe
+          ./my_app.exe
           RET=$?
           set -e
           
-          echo -e "\n--- OS Return Code ---"
+          echo -e "\n--- OS Return Code (Expected 42) ---"
           echo "Status: $RET"
