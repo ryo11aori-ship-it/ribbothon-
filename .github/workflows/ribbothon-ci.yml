@@ -13,17 +13,18 @@ jobs:
           
       - name: Generate Advanced AOT Compiler Source via Python
         run: |
-          python3 -c "
+          # 'EOF' をシングルクォートで囲むことでBashの変数展開($)を完全無効化！
+          cat << 'EOF' > generate.py
           with open('source_ultimate_aot.txt', 'w') as f:
-              f.write('Z $OUT x\nZ $PC x\nZ $SP x\n')
+              f.write("Z $OUT x\nZ $PC x\nZ $SP x\n")
               
-              f.write('Z $TARGET_VAL x\nZ $TARGET_IDX x\n')
+              f.write("Z $TARGET_VAL x\nZ $TARGET_IDX x\n")
               
-              # f-stringを使わず、安全な .format() とエスケープを使う
+              # バッファ書き込みマクロ（とりあえず150バイト分テスト）
               for i in range(150):
-                  f.write('C $TARGET_IDX $CMP x\nF $CMP {0} x\n  C $TARGET_VAL $BUF_{0} x\nU x\n'.format(i))
+                  f.write(f"C $TARGET_IDX $CMP x\nF $CMP {i} x\n  C $TARGET_VAL $BUF_{i} x\nU x\n")
               
-              f.write('''
+              f.write("""
               I $CHAR x
               C $CHAR $EOF_CHECK x
               A $EOF_CHECK 1 x
@@ -32,20 +33,20 @@ jobs:
               C $CHAR $CMP x
               F $CMP 51 x
                 A $TARGET_VAL 254 x C $PC $TARGET_IDX x
-              ''')
+              """)
               
               for i in range(150):
-                  f.write('C $TARGET_IDX $CMP x F $CMP {0} x C $TARGET_VAL $BUF_{0} x U x\n'.format(i))
+                  f.write(f"C $TARGET_IDX $CMP x F $CMP {i} x C $TARGET_VAL $BUF_{i} x U x\n")
               
-              f.write('''
+              f.write("""
                 A $PC 1 x
                 Z $TARGET_VAL x A $TARGET_VAL 7 x C $PC $TARGET_IDX x
-              ''')
+              """)
               
               for i in range(150):
-                  f.write('C $TARGET_IDX $CMP x F $CMP {0} x C $TARGET_VAL $BUF_{0} x U x\n'.format(i))
+                  f.write(f"C $TARGET_IDX $CMP x F $CMP {i} x C $TARGET_VAL $BUF_{i} x U x\n")
               
-              f.write('''
+              f.write("""
                 A $PC 1 x
               U x
               
@@ -56,18 +57,22 @@ jobs:
               
               Z $PRINT_IDX x
               W 1 x
-              ''')
+              """)
               
               for i in range(150):
-                  f.write('C $PRINT_IDX $CMP x F $CMP {0} x P $BUF_{0} x U x\n'.format(i))
+                  f.write(f"C $PRINT_IDX $CMP x F $CMP {i} x P $BUF_{i} x U x\n")
               
-              f.write('''
+              f.write("""
                 A $PRINT_IDX 1 x
                 C $PRINT_IDX $CMP x
               E x
-              ''')
-          "
+              """)
+          EOF
           
+          # 生成した安全なPythonスクリプトを実行
+          python3 generate.py
+          
+          # 結果確認
           head -n 20 source_ultimate_aot.txt
           echo "..."
           tail -n 20 source_ultimate_aot.txt
