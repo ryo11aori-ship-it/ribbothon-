@@ -113,7 +113,7 @@ jobs:
           echo "Status: $RET"
 
       - name: Test Self-Hosting Foundation
-run: |
+        run: |
 cat << 'EOF' > source_self_host_compiler.txt
 Z $COUNT x
 Z $CHAR x
