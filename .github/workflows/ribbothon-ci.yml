@@ -140,8 +140,8 @@ jobs:
           EOF
           python3 canonicalize.py < compiler_v2.rib > compiler_v2.norm.rib
           python3 canonicalize.py < compiler_v3.rib > compiler_v3.norm.rib
-          sha256sum compiler_v2.norm.rib > h2.txt
-          sha256sum compiler_v3.norm.rib > h3.txt
+          sha256sum compiler_v2.norm.rib | awk '{print $1}' > h2.txt
+          sha256sum compiler_v3.norm.rib | awk '{print $1}' > h3.txt
           cat h2.txt
           cat h3.txt
           if cmp -s h2.txt h3.txt; then
