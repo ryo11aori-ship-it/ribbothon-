@@ -11,80 +11,29 @@ jobs:
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
           
-      - name: Generate Turing-Complete AOT Compiler (Bulletproof Syscall Edition)
+      - name: Generate Turing-Complete AOT Compiler (C Transpiler Edition)
         run: |
           cat << 'EOF' > generate.py
-          import sys
-          
-          def emit_bytes(vals, track=True):
+          def emit_str(s):
               res = ""
-              for val in vals:
-                  res += f"Z $OUT x A $OUT {val} x P $OUT x\n"
-              if track:
-                  size = len(vals)
-                  res += f"C $CMP $IN_LOOP x F $CMP 1 x A $BODY_SIZE {size} x U x\n"
+              for c in s:
+                  res += f"Z $OUT x A $OUT {ord(c)} x P $OUT x\n"
               return res
           
-          elf_bytes = [
-              0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-              0x02, 0x00, 0x3e, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
-              0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-              0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x38, 0x00, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
-              0x01, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-              0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
-              0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-              0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 
-              0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-              0x49, 0xC7, 0xC7, 0x00, 0x10, 0x40, 0x00,       
-              0x4D, 0x31, 0xF6                                
-          ]
-          
-          post_code = [
-              0xb8, 0x3c, 0x00, 0x00, 0x00,
-              0xbf, 0x2a, 0x00, 0x00, 0x00,
-              0x0f, 0x05
-          ]
-          
           with open('source_ultimate_aot.txt', 'w') as f:
-              f.write("Z $OUT x Z $IN_LOOP x Z $BODY_SIZE x\n")
-              
-              for b in elf_bytes:
-                  f.write(f"Z $OUT x A $OUT {b} x P $OUT x\n")
-              
+              f.write(emit_str("#include <stdio.h>\n#include <stdlib.h>\nunsigned char m[3000000];int p=0;\nint main(){\n"))
               f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x W $EOF_CHECK x\n")
-              
-              f.write("C $CMP $CHAR x F $CMP 49 x\n" + emit_bytes([0x49, 0xFF, 0xC6]) + "U x\n")
-              f.write("C $CMP $CHAR x F $CMP 50 x\n" + emit_bytes([0x49, 0xFF, 0xCE]) + "U x\n")
-              f.write("C $CMP $CHAR x F $CMP 51 x\n" + emit_bytes([0x43, 0xFE, 0x04, 0x37]) + "U x\n")
-              f.write("C $CMP $CHAR x F $CMP 52 x\n" + emit_bytes([0x43, 0xFE, 0x0C, 0x37]) + "U x\n")
-              
-              f.write("C $CMP $CHAR x F $CMP 53 x\n" + emit_bytes([0xB8, 0x01, 0x00, 0x00, 0x00, 0xBF, 0x01, 0x00, 0x00, 0x00, 0x4C, 0x89, 0xFE, 0x4C, 0x01, 0xF6, 0xBA, 0x01, 0x00, 0x00, 0x00, 0x0F, 0x05]) + "U x\n")
-              f.write("C $CMP $CHAR x F $CMP 54 x\n" + emit_bytes([0x31, 0xC0, 0x31, 0xFF, 0x4C, 0x89, 0xFE, 0x4C, 0x01, 0xF6, 0xBA, 0x01, 0x00, 0x00, 0x00, 0x0F, 0x05]) + "U x\n")
-              
-              f.write("C $CMP $CHAR x F $CMP 55 x\n")
-              f.write("A $IN_LOOP 1 x Z $BODY_SIZE x\n")
-              f.write(emit_bytes([0x43, 0x80, 0x3C, 0x37, 0x00, 0x0F, 0x84, 0x75, 0x00, 0x00, 0x00], track=False))
-              f.write("U x\n")
-              
-              f.write("C $CMP $CHAR x F $CMP 56 x\n")
-              f.write("C $PAD_LOOP 1 x\n")
-              f.write("W $PAD_LOOP x\n")
-              f.write("  C $CMP $BODY_SIZE x F $CMP 106 x C $PAD_LOOP 0 x U x\n")
-              f.write("  C $CMP $PAD_LOOP x F $CMP 1 x\n")
-              f.write("    Z $OUT x A $OUT 144 x P $OUT x\n")
-              f.write("    A $BODY_SIZE 1 x\n")
-              f.write("  U x\n")
-              f.write("E x\n")
-              f.write(emit_bytes([0x43, 0x80, 0x3C, 0x37, 0x00, 0x0F, 0x85, 0x8B, 0xFF, 0xFF, 0xFF], track=False))
-              f.write("Z $IN_LOOP x\n")
-              f.write("U x\n")
-              
+              f.write("C $CMP $CHAR x F $CMP 49 x\n" + emit_str("p++;\n") + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 50 x\n" + emit_str("p--;\n") + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 51 x\n" + emit_str("m[p]++;\n") + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 52 x\n" + emit_str("m[p]--;\n") + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 53 x\n" + emit_str("putchar(m[p]);\n") + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 54 x\n" + emit_str("m[p]=getchar();\n") + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 55 x\n" + emit_str("while(m[p]){\n") + "U x\n")
+              f.write("C $CMP $CHAR x F $CMP 56 x\n" + emit_str("}\n") + "U x\n")
               f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x E x\n")
-              
-              for b in post_code:
-                  f.write(f"Z $OUT x A $OUT {b} x P $OUT x\n")
+              f.write(emit_str("return 42;\n}\n"))
           EOF
-          
           python3 generate.py
           ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
           
@@ -92,20 +41,15 @@ jobs:
           echo -n "3333337133333333332481333335" > my_app.rib
           
           echo -e "\n--- Step 2: Compiling 'my_app.rib' to Native Linux Executable ---"
-          cat my_app.rib | ./ribbothon ultimate_aot.rib > my_app.exe
+          cat my_app.rib | ./ribbothon ultimate_aot.rib > my_app.c
+          gcc -O3 my_app.c -o my_app.exe
           
           echo -e "\n--- Step 3: Executing the Native Turing-Complete Executable! ---"
           chmod +x my_app.exe
-          
           set +e
           ./my_app.exe > result.txt
           RET=$?
           set -e
-          
-          echo -e "\n--- Output from Executable (Hexdump) ---"
-          hexdump -C result.txt
-          echo ""
-          
           echo -e "\n--- OS Return Code (Expected 42) ---"
           echo "Status: $RET"
           
@@ -163,7 +107,8 @@ jobs:
           E x
           EOF
           ./meta_compiler < source_self_host_compiler.txt > self_host_compiler.rib
-          cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.exe
+          cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.c
+          gcc -O3 self_host_compiler.c -o self_host_compiler.exe
           chmod +x self_host_compiler.exe
           
           echo -e "\n--- Executing Self-Hosted Compiler Foundation ---"
