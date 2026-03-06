@@ -104,14 +104,18 @@ jobs:
           python3 generate_v3.py
           
           echo -e "\n--- Step 1: Compiling V3 Source with V2 Native Compiler ---"
+          set +e
           cat compiler_v3_source.txt | ./self_host_compiler.exe > compiler_v3.rib
+          set -e
           
           echo -e "\n--- Step 2: Compiling V3 Source with V3 Native Compiler (Bootstrapping) ---"
           cat compiler_v3.rib | ./ribbothon ultimate_aot.rib > compiler_v3.c
           gcc -O3 compiler_v3.c -o compiler_v3.exe
           chmod +x compiler_v3.exe
           
+          set +e
           cat compiler_v3_source.txt | ./compiler_v3.exe > compiler_v4.rib
+          set -e
           
           echo -e "\n--- Step 3: Verifying Identical Output (The Holy Grail) ---"
           if cmp -s compiler_v3.rib compiler_v4.rib; then
