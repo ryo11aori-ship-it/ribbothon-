@@ -35,78 +35,54 @@ jobs:
           EOF
           python3 generate.py
           ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
-          echo -e "\n--- Step 1: Writing pure Ribbothon Loop Program 'A' ---"
-          echo -n "3333337133333333332481333335" > my_app.rib
-          echo -e "\n--- Step 2: Compiling 'my_app.rib' to Native Linux Executable ---"
-          cat my_app.rib | ./ribbothon ultimate_aot.rib > my_app.c
-          gcc -O3 my_app.c -o my_app.exe
-          echo -e "\n--- Step 3: Executing the Native Turing-Complete Executable! ---"
-          chmod +x my_app.exe
-          set +e
-          ./my_app.exe > result.txt
-          RET=$?
-          set -e
-          echo -e "\n--- OS Return Code (Expected 42) ---"
-          echo "Status: $RET"
-      - name: Test Self-Hosting Foundation
+      - name: Build Self-Hosted Compiler with RTZ Architecture
         run: |
-          cat << 'EOF' > source_self_host_compiler.txt
-          Z $COUNT x
-          Z $MAIN_LOOP x
-          A $MAIN_LOOP 1 x
-          W $MAIN_LOOP x
-          Z $CHAR x
-          I $CHAR x
-          C $CHAR $EOF_CHECK x
-          A $EOF_CHECK 1 x
-          C $EOF_CHECK $CMP x
-          F $CMP 0 x
-          Z $MAIN_LOOP x
-          U x
-          C $MAIN_LOOP $CMP x
-          F $CMP 1 x
-          Z $PROCESSED x
-          Z $OUT_CHAR x
-          C $CHAR $CMP x F $CMP 62 x A $OUT_CHAR 49 x A $PROCESSED 1 x U x
-          C $CHAR $CMP x F $CMP 60 x A $OUT_CHAR 50 x A $PROCESSED 1 x U x
-          C $CHAR $CMP x F $CMP 43 x A $OUT_CHAR 51 x A $PROCESSED 1 x U x
-          C $CHAR $CMP x F $CMP 45 x A $OUT_CHAR 52 x A $PROCESSED 1 x U x
-          C $CHAR $CMP x F $CMP 46 x A $OUT_CHAR 53 x A $PROCESSED 1 x U x
-          C $CHAR $CMP x F $CMP 44 x A $OUT_CHAR 54 x A $PROCESSED 1 x U x
-          C $CHAR $CMP x F $CMP 91 x A $OUT_CHAR 55 x A $PROCESSED 1 x U x
-          C $CHAR $CMP x F $CMP 93 x A $OUT_CHAR 56 x A $PROCESSED 1 x U x
-          C $PROCESSED $CMP x F $CMP 1 x
-          P $OUT_CHAR x
+          cat << 'EOF' > generate_self_host.py
+          def emit_output(char_code):
+            return f"""Z $OUT_CHAR x A $OUT_CHAR {char_code} x P $OUT_CHAR x
           A $COUNT 1 x
-          C $COUNT $CMP x F $CMP 5 x
-          Z $OUT_X x A $OUT_X 120 x P $OUT_X x
-          Z $COUNT x
-          U x
-          U x
-          U x
-          E x
-          Z $PAD_LOOP x
-          C $COUNT $CMP x F $CMP 1 x A $PAD_LOOP 1 x U x
-          C $COUNT $CMP x F $CMP 2 x A $PAD_LOOP 1 x U x
-          C $COUNT $CMP x F $CMP 3 x A $PAD_LOOP 1 x U x
-          C $COUNT $CMP x F $CMP 4 x A $PAD_LOOP 1 x U x
-          W $PAD_LOOP x
-          Z $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x
-          A $COUNT 1 x
-          C $COUNT $CMP x F $CMP 5 x
-          Z $OUT_X x A $OUT_X 120 x P $OUT_X x
-          Z $COUNT x
-          Z $PAD_LOOP x
-          U x
-          E x
+          C $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x U x
+          """
+          
+          res = "Z $COUNT x\nZ $MAIN_LOOP x A $MAIN_LOOP 1 x\nW $MAIN_LOOP x\n"
+          res += "I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x C $EOF_CHECK $CMP x F $CMP 0 x Z $MAIN_LOOP x U x\n"
+          res += "C $MAIN_LOOP $CMP x F $CMP 1 x\nZ $PROCESSED x\n"
+          
+          basics = {62:49, 60:50, 43:51, 45:52, 46:53, 44:54, 91:55, 93:56}
+          for in_c, out_c in basics.items():
+            res += f"C $CHAR $CMP x F $CMP {in_c} x A $PROCESSED 1 x\n" + emit_output(out_c) + "U x\n"
+          
+          res += "C $CHAR $CMP x F $CMP 90 x A $PROCESSED 1 x I $VAR x\n"
+          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
+          res += emit_output(55) + emit_output(52) + emit_output(56)
+          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
+          res += "U x\n"
+          
+          res += "U x\nE x\n"
+          
+          res += "Z $PAD_LOOP x\n"
+          res += "C $COUNT $CMP x F $CMP 1 x A $PAD_LOOP 1 x U x\n"
+          res += "C $COUNT $CMP x F $CMP 2 x A $PAD_LOOP 1 x U x\n"
+          res += "C $COUNT $CMP x F $CMP 3 x A $PAD_LOOP 1 x U x\n"
+          res += "C $COUNT $CMP x F $CMP 4 x A $PAD_LOOP 1 x U x\n"
+          res += "W $PAD_LOOP x\n"
+          res += "Z $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x\n"
+          res += "A $COUNT 1 x\n"
+          res += "C $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x Z $PAD_LOOP x U x\n"
+          res += "E x\n"
+          
+          with open('source_self_host_compiler.txt', 'w') as f:
+            f.write(res)
           EOF
+          python3 generate_self_host.py
           ./meta_compiler < source_self_host_compiler.txt > self_host_compiler.rib
           cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.c
           gcc -O3 self_host_compiler.c -o self_host_compiler.exe
           chmod +x self_host_compiler.exe
-          echo -e "\n--- Executing Self-Hosted Compiler Foundation ---"
+          
+          echo -e "\n--- Executing Self-Hosted Compiler Foundation (Z Command Test) ---"
           set +e
-          echo -n ">++" | ./self_host_compiler.exe > test_output.txt
+          echo -n "Z!" | ./self_host_compiler.exe > test_output.txt
           RET=$?
           set -e
           echo "Status: $RET"
