@@ -86,11 +86,10 @@ jobs:
           U x
           E x
           Z $PAD_LOOP x
-          C $COUNT $CMP x
-          F $CMP 1 x A $PAD_LOOP 1 x U x
-          F $CMP 2 x A $PAD_LOOP 1 x U x
-          F $CMP 3 x A $PAD_LOOP 1 x U x
-          F $CMP 4 x A $PAD_LOOP 1 x U x
+          C $COUNT $CMP x F $CMP 1 x A $PAD_LOOP 1 x U x
+          C $COUNT $CMP x F $CMP 2 x A $PAD_LOOP 1 x U x
+          C $COUNT $CMP x F $CMP 3 x A $PAD_LOOP 1 x U x
+          C $COUNT $CMP x F $CMP 4 x A $PAD_LOOP 1 x U x
           W $PAD_LOOP x
           Z $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x
           A $COUNT 1 x
