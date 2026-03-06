@@ -113,7 +113,7 @@ jobs:
           echo "Status: $RET"
 
       - name: Test Self-Hosting Foundation
-        run: |
+run: |
 cat << 'EOF' > source_self_host_compiler.txt
 Z $COUNT x
 Z $CHAR x
@@ -145,4 +145,5 @@ cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.e
 chmod +x self_host_compiler.exe
 echo ">" | ./self_host_compiler.exe > test_output.txt
 cat test_output.txt
+
 
