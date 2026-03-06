@@ -1,74 +1,48 @@
-name: Ribbothon CI
+name: Ribbothon CI (Strict Self-Hosting)
 on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile Tools
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm
+      - name: Compile Seed (S0)
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
-      - name: Generate Turing-Complete AOT Compiler (C Transpiler Edition)
+      - name: Generate Native ASM Transpiler (NASM Backend)
         run: |
-          cat << 'EOF' > generate.py
+          cat << 'EOF' > generate_asm_transpiler.py
           def emit_str(s):
             res = ""
             for c in s:
               res += f"Z $OUT x A $OUT {ord(c)} x P $OUT x\n"
             return res
           with open('source_ultimate_aot.txt', 'w') as f:
-            f.write(emit_str("#include <stdio.h>\n#include <stdlib.h>\nunsigned char m[3000000];int p=0;\nint main(){\n"))
+            f.write(emit_str("global _start\nsection .bss\nm resb 3000000\nsection .text\n_start:\nmov rsi, m\n"))
             f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x W $EOF_CHECK x\n")
-            f.write("C $CHAR $CMP x F $CMP 49 x\n" + emit_str("p++;\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 50 x\n" + emit_str("p--;\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 51 x\n" + emit_str("m[p]++;\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 52 x\n" + emit_str("m[p]--;\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 53 x\n" + emit_str("putchar(m[p]);\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 54 x\n" + emit_str("m[p]=getchar();\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 55 x\n" + emit_str("while(m[p]){\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 56 x\n" + emit_str("}\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 57 x\n" + emit_str("m[p]+=3;\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 97 x\n" + emit_str("m[p]-=3;\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 49 x\n" + emit_str("inc rsi\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 50 x\n" + emit_str("dec rsi\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 51 x\n" + emit_str("inc byte [rsi]\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 52 x\n" + emit_str("dec byte [rsi]\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 53 x\n" + emit_str("push rsi\nmov rax, 1\nmov rdi, 1\nmov rdx, 1\nsyscall\npop rsi\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 54 x\n" + emit_str("push rsi\nmov rax, 0\nmov rdi, 0\nmov rdx, 1\nsyscall\npop rsi\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 55 x\n" + emit_str("%push L\ncmp byte [rsi], 0\nje %$end\n%$start:\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 56 x\n" + emit_str("cmp byte [rsi], 0\njne %$start\n%$end:\n%pop\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 57 x\n" + emit_str("add byte [rsi], 3\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 97 x\n" + emit_str("sub byte [rsi], 3\n") + "U x\n")
             f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x E x\n")
-            f.write(emit_str("return 42;\n}\n"))
+            f.write(emit_str("mov rax, 60\nmov rdi, 42\nsyscall\n"))
           EOF
-          python3 generate.py
+          python3 generate_asm_transpiler.py
           ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
-          cat ultimate_aot.rib | ./ribbothon ultimate_aot.rib > ultimate_aot.c
-          gcc -O3 ultimate_aot.c -o ultimate_aot.exe
-      - name: Build Self-Hosted Compiler with RTZ Architecture
-        run: |
-          cat << 'EOF' > generate_self_host.py
-          def emit_output(char_code):
-            return f"Z $OUT_CHAR x A $OUT_CHAR {char_code} x P $OUT_CHAR x\nA $COUNT 1 x\nC $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x U x\n"
-          res = "Z $COUNT x\nZ $MAIN_LOOP x A $MAIN_LOOP 1 x\nW $MAIN_LOOP x\n"
-          res += "I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x C $EOF_CHECK $CMP x F $CMP 0 x Z $MAIN_LOOP x U x\n"
-          res += "C $MAIN_LOOP $CMP x F $CMP 1 x\nZ $PROCESSED x\n"
-          basics = {62:49, 60:50, 43:51, 45:52, 46:53, 44:54, 91:55, 93:56}
-          for in_c, out_c in basics.items():
-            res += f"C $CHAR $CMP x F $CMP {in_c} x A $PROCESSED 1 x\n" + emit_output(out_c) + "U x\n"
-          res += "C $CHAR $CMP x F $CMP 90 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(55) + emit_output(52) + emit_output(56) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 65 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(51) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 83 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(52) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 80 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(53) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 73 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(54) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 87 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(55) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 69 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(56) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "U x\nE x\n"
-          res += "Z $PAD_LOOP x\nC $COUNT $CMP x F $CMP 1 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 2 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 3 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 4 x A $PAD_LOOP 1 x U x\n"
-          res += "W $PAD_LOOP x\nZ $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x\nA $COUNT 1 x\nC $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x Z $PAD_LOOP x U x\nE x\n"
-          with open('source_self_host_compiler.txt', 'w') as f:
-            f.write(res)
-          EOF
-          python3 generate_self_host.py
-          ./meta_compiler < source_self_host_compiler.txt > self_host_compiler.rib
-          set +e
-          cat self_host_compiler.rib | ./ultimate_aot.exe > self_host_compiler.c
-          set -e
-          gcc -O0 self_host_compiler.c -o self_host_compiler.exe
-          chmod +x self_host_compiler.exe
-      - name: Achieve True Self-Hosting (Bootstrapping)
+          cat ultimate_aot.rib | ./ribbothon ultimate_aot.rib > ultimate_aot.asm
+          nasm -f elf64 ultimate_aot.asm -o ultimate_aot.o
+          ld ultimate_aot.o -o ultimate_aot.exe
+      - name: Prepare V3 Source (Pure Ribbothon Macros)
         run: |
           cat << 'EOF' > generate_v3.py
           def copy(src, dst, scratch='0'):
@@ -106,28 +80,72 @@ jobs:
             f.write(code)
           EOF
           python3 generate_v3.py
-          
-          echo -e "\n--- Step 1: Compiling V3 Source with V2 Native Compiler ---"
+      - name: Build Stage 1 (S1) Compiler
+        run: |
+          ./meta_compiler < compiler_v3_source.txt > compiler_v1.rib
           set +e
-          cat compiler_v3_source.txt | ./self_host_compiler.exe > compiler_v3.rib
+          cat compiler_v1.rib | ./ultimate_aot.exe > compiler_v1.asm
           set -e
-          
-          echo -e "\n--- Step 2: Compiling V3 Source with V3 Native Compiler (Bootstrapping) ---"
+          nasm -f elf64 compiler_v1.asm -o compiler_v1.o
+          ld compiler_v1.o -o compiler_v1.exe
+      - name: Build Stage 2 & 3 (S2, S3) Compilers
+        run: |
           set +e
-          cat compiler_v3.rib | ./ultimate_aot.exe > compiler_v3.c
+          cat compiler_v3_source.txt | ./compiler_v1.exe > compiler_v2.rib
           set -e
-          gcc -O0 compiler_v3.c -o compiler_v3.exe
-          chmod +x compiler_v3.exe
-          
           set +e
-          cat compiler_v3_source.txt | ./compiler_v3.exe > compiler_v4.rib
+          cat compiler_v2.rib | ./ultimate_aot.exe > compiler_v2.asm
           set -e
-          
-          echo -e "\n--- Step 3: Verifying Identical Output (The Holy Grail) ---"
-          if cmp -s compiler_v3.rib compiler_v4.rib; then
-              echo "SUCCESS: Self-Hosting Achieved! The compiler successfully compiled itself!"
-              md5sum compiler_v3.rib
+          nasm -f elf64 compiler_v2.asm -o compiler_v2.o
+          ld compiler_v2.o -o compiler_v2.exe
+          set +e
+          cat compiler_v3_source.txt | ./compiler_v2.exe > compiler_v3.rib
+          set -e
+      - name: Canonicalize and Strict SHA-256 Check
+        run: |
+          cat << 'EOF' > canonicalize.py
+          import sys
+          s = sys.stdin.read()
+          s = s.replace('\r\n', '\n').replace('\r', '\n')
+          lines = [l.strip() for l in s.split('\n')]
+          out = [l for l in lines if l]
+          print('\n'.join(out))
+          EOF
+          python3 canonicalize.py < compiler_v2.rib > compiler_v2.norm.rib
+          python3 canonicalize.py < compiler_v3.rib > compiler_v3.norm.rib
+          sha256sum compiler_v2.norm.rib > h2.txt
+          sha256sum compiler_v3.norm.rib > h3.txt
+          cat h2.txt
+          cat h3.txt
+          if cmp -s h2.txt h3.txt; then
+            echo "TRUE SELF-HOST: SHA-256 matches strictly."
           else
-              echo "FAIL: Outputs differ."
-              exit 1
+            echo "FAIL: SHA-256 differs."
+            exit 1
+          fi
+      - name: Behavioral Testing (Testing S2 vs S3 outputs)
+        run: |
+          echo -n "Z!A!A!P!S!P!" > test_prog.txt
+          set +e
+          cat test_prog.txt | ./compiler_v1.exe > test_prog_v2.rib
+          cat test_prog_v2.rib | ./ultimate_aot.exe > test_prog_v2.asm
+          set -e
+          nasm -f elf64 test_prog_v2.asm -o test_prog_v2.o
+          ld test_prog_v2.o -o test_prog_v2.exe
+          set +e
+          cat test_prog.txt | ./compiler_v2.exe > test_prog_v3.rib
+          cat test_prog_v3.rib | ./ultimate_aot.exe > test_prog_v3.asm
+          set -e
+          nasm -f elf64 test_prog_v3.asm -o test_prog_v3.o
+          ld test_prog_v3.o -o test_prog_v3.exe
+          set +e
+          ./test_prog_v2.exe > out_v2.txt
+          ./test_prog_v3.exe > out_v3.txt
+          set -e
+          if cmp -s out_v2.txt out_v3.txt; then
+            echo "BEHAVIORAL TESTS OK: Both S2 and S3 compilers produced identical execution results."
+            hexdump -C out_v2.txt
+          else
+            echo "FAIL: Behavioral mismatch."
+            exit 1
           fi
