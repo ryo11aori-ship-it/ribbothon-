@@ -35,6 +35,8 @@ jobs:
           EOF
           python3 generate.py
           ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
+          cat ultimate_aot.rib | ./ribbothon ultimate_aot.rib > ultimate_aot.c
+          gcc -O3 ultimate_aot.c -o ultimate_aot.exe
       - name: Build Self-Hosted Compiler with RTZ Architecture
         run: |
           cat << 'EOF' > generate_self_host.py
@@ -61,7 +63,7 @@ jobs:
           EOF
           python3 generate_self_host.py
           ./meta_compiler < source_self_host_compiler.txt > self_host_compiler.rib
-          cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.c
+          cat self_host_compiler.rib | ./ultimate_aot.exe > self_host_compiler.c
           gcc -O0 self_host_compiler.c -o self_host_compiler.exe
           chmod +x self_host_compiler.exe
       - name: Achieve True Self-Hosting (Bootstrapping)
@@ -109,7 +111,7 @@ jobs:
           set -e
           
           echo -e "\n--- Step 2: Compiling V3 Source with V3 Native Compiler (Bootstrapping) ---"
-          cat compiler_v3.rib | ./ribbothon ultimate_aot.rib > compiler_v3.c
+          cat compiler_v3.rib | ./ultimate_aot.exe > compiler_v3.c
           gcc -O0 compiler_v3.c -o compiler_v3.exe
           chmod +x compiler_v3.exe
           
