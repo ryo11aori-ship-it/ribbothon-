@@ -62,7 +62,7 @@ jobs:
           python3 generate_self_host.py
           ./meta_compiler < source_self_host_compiler.txt > self_host_compiler.rib
           cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.c
-          gcc -O3 self_host_compiler.c -o self_host_compiler.exe
+          gcc -O0 self_host_compiler.c -o self_host_compiler.exe
           chmod +x self_host_compiler.exe
       - name: Achieve True Self-Hosting (Bootstrapping)
         run: |
@@ -110,7 +110,7 @@ jobs:
           
           echo -e "\n--- Step 2: Compiling V3 Source with V3 Native Compiler (Bootstrapping) ---"
           cat compiler_v3.rib | ./ribbothon ultimate_aot.rib > compiler_v3.c
-          gcc -O3 compiler_v3.c -o compiler_v3.exe
+          gcc -O0 compiler_v3.c -o compiler_v3.exe
           chmod +x compiler_v3.exe
           
           set +e
