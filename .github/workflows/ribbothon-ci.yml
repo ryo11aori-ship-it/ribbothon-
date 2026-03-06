@@ -111,3 +111,38 @@ jobs:
           
           echo -e "\n--- OS Return Code (Expected 42) ---"
           echo "Status: $RET"
+
+      - name: Test Self-Hosting Foundation
+run: |
+cat << 'EOF' > source_self_host_compiler.txt
+Z $COUNT x
+Z $CHAR x
+Z $OUT_CHAR x
+W $MAIN_LOOP x
+I $CHAR x
+C $CHAR $EOF_CHECK x
+A $EOF_CHECK 1 x
+C $CMP $EOF_CHECK x
+F $CMP 0 x
+E x
+U x
+Z $PROCESSED x
+C $CMP $CHAR x F $CMP 62 x A $OUT_CHAR 49 x A $PROCESSED 1 x U x
+C $CMP $PROCESSED x F $CMP 1 x
+P $OUT_CHAR x
+A $COUNT 1 x
+C $CMP $COUNT x F $CMP 5 x
+Z $OUT_X x A $OUT_X 120 x P $OUT_X x
+Z $COUNT x
+U x
+Z $OUT_CHAR x
+Z $PROCESSED x
+U x
+E x
+EOF
+./meta_compiler < source_self_host_compiler.txt > self_host_compiler.rib
+cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.exe
+chmod +x self_host_compiler.exe
+echo ">" | ./self_host_compiler.exe > test_output.txt
+cat test_output.txt
+
