@@ -52,31 +52,52 @@ jobs:
           for in_c, out_c in basics.items():
             res += f"C $CHAR $CMP x F $CMP {in_c} x A $PROCESSED 1 x\n" + emit_output(out_c) + "U x\n"
           
-          # Z Command (Zero)
+          # Z (Zero)
           res += "C $CHAR $CMP x F $CMP 90 x A $PROCESSED 1 x I $VAR x\n"
           res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
           res += emit_output(55) + emit_output(52) + emit_output(56)
           res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
           res += "U x\n"
           
-          # A Command (Add 1)
+          # A (Add)
           res += "C $CHAR $CMP x F $CMP 65 x A $PROCESSED 1 x I $VAR x\n"
           res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
           res += emit_output(51)
           res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
           res += "U x\n"
           
-          # S Command (Subtract 1)
+          # S (Subtract)
           res += "C $CHAR $CMP x F $CMP 83 x A $PROCESSED 1 x I $VAR x\n"
           res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
           res += emit_output(52)
           res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
           res += "U x\n"
           
-          # P Command (Print)
+          # P (Print)
           res += "C $CHAR $CMP x F $CMP 80 x A $PROCESSED 1 x I $VAR x\n"
           res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
           res += emit_output(53)
+          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
+          res += "U x\n"
+          
+          # I (Input)
+          res += "C $CHAR $CMP x F $CMP 73 x A $PROCESSED 1 x I $VAR x\n"
+          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
+          res += emit_output(54)
+          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
+          res += "U x\n"
+          
+          # W (While Start)
+          res += "C $CHAR $CMP x F $CMP 87 x A $PROCESSED 1 x I $VAR x\n"
+          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
+          res += emit_output(55)
+          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
+          res += "U x\n"
+          
+          # E (While End)
+          res += "C $CHAR $CMP x F $CMP 69 x A $PROCESSED 1 x I $VAR x\n"
+          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
+          res += emit_output(56)
           res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
           res += "U x\n"
           
@@ -102,11 +123,20 @@ jobs:
           gcc -O3 self_host_compiler.c -o self_host_compiler.exe
           chmod +x self_host_compiler.exe
           
-          echo -e "\n--- Executing Self-Hosted Compiler (Z A P Test) ---"
+          echo -e "\n--- Step 1: Compiling V2 Logic with Self-Hosted Compiler ---"
           set +e
-          echo -n "Z!A!P!" | ./self_host_compiler.exe > test_output.txt
+          echo -n "Z!A!A!A!W!P!S!E!" | ./self_host_compiler.exe > test_app.rib
+          RET=$?
+          set -e
+          
+          echo -e "\n--- Step 2: Transpiling and Executing Native Binary ---"
+          cat test_app.rib | ./ribbothon ultimate_aot.rib > test_app.c
+          gcc -O3 test_app.c -o test_app.exe
+          set +e
+          ./test_app.exe > test_run.txt
           RET=$?
           set -e
           echo "Status: $RET"
-          echo -e "\n--- Test Output ---"
-          cat test_output.txt
+          
+          echo -e "\n--- Hexdump of the Execution Output (Expected 03 02 01) ---"
+          hexdump -C test_run.txt
