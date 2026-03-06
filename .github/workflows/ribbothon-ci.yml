@@ -5,45 +5,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Compile Tools
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
-          
       - name: Generate Turing-Complete AOT Compiler (C Transpiler Edition)
         run: |
           cat << 'EOF' > generate.py
           def emit_str(s):
-              res = ""
-              for c in s:
-                  res += f"Z $OUT x A $OUT {ord(c)} x P $OUT x\n"
-              return res
-          
+            res = ""
+            for c in s:
+              res += f"Z $OUT x A $OUT {ord(c)} x P $OUT x\n"
+            return res
           with open('source_ultimate_aot.txt', 'w') as f:
-              f.write(emit_str("#include <stdio.h>\n#include <stdlib.h>\nunsigned char m[3000000];int p=0;\nint main(){\n"))
-              f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x W $EOF_CHECK x\n")
-              f.write("C $CHAR $CMP x F $CMP 49 x\n" + emit_str("p++;\n") + "U x\n")
-              f.write("C $CHAR $CMP x F $CMP 50 x\n" + emit_str("p--;\n") + "U x\n")
-              f.write("C $CHAR $CMP x F $CMP 51 x\n" + emit_str("m[p]++;\n") + "U x\n")
-              f.write("C $CHAR $CMP x F $CMP 52 x\n" + emit_str("m[p]--;\n") + "U x\n")
-              f.write("C $CHAR $CMP x F $CMP 53 x\n" + emit_str("putchar(m[p]);\n") + "U x\n")
-              f.write("C $CHAR $CMP x F $CMP 54 x\n" + emit_str("m[p]=getchar();\n") + "U x\n")
-              f.write("C $CHAR $CMP x F $CMP 55 x\n" + emit_str("while(m[p]){\n") + "U x\n")
-              f.write("C $CHAR $CMP x F $CMP 56 x\n" + emit_str("}\n") + "U x\n")
-              f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x E x\n")
-              f.write(emit_str("return 42;\n}\n"))
+            f.write(emit_str("#include <stdio.h>\n#include <stdlib.h>\nunsigned char m[3000000];int p=0;\nint main(){\n"))
+            f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x W $EOF_CHECK x\n")
+            f.write("C $CHAR $CMP x F $CMP 49 x\n" + emit_str("p++;\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 50 x\n" + emit_str("p--;\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 51 x\n" + emit_str("m[p]++;\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 52 x\n" + emit_str("m[p]--;\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 53 x\n" + emit_str("putchar(m[p]);\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 54 x\n" + emit_str("m[p]=getchar();\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 55 x\n" + emit_str("while(m[p]){\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 56 x\n" + emit_str("}\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 57 x\n" + emit_str("m[p]+=3;\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 97 x\n" + emit_str("m[p]-=3;\n") + "U x\n")
+            f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x E x\n")
+            f.write(emit_str("return 42;\n}\n"))
           EOF
           python3 generate.py
           ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
-          
           echo -e "\n--- Step 1: Writing pure Ribbothon Loop Program 'A' ---"
           echo -n "3333337133333333332481333335" > my_app.rib
-          
           echo -e "\n--- Step 2: Compiling 'my_app.rib' to Native Linux Executable ---"
           cat my_app.rib | ./ribbothon ultimate_aot.rib > my_app.c
           gcc -O3 my_app.c -o my_app.exe
-          
           echo -e "\n--- Step 3: Executing the Native Turing-Complete Executable! ---"
           chmod +x my_app.exe
           set +e
@@ -52,7 +48,6 @@ jobs:
           set -e
           echo -e "\n--- OS Return Code (Expected 42) ---"
           echo "Status: $RET"
-          
       - name: Test Self-Hosting Foundation
         run: |
           cat << 'EOF' > source_self_host_compiler.txt
@@ -110,13 +105,11 @@ jobs:
           cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.c
           gcc -O3 self_host_compiler.c -o self_host_compiler.exe
           chmod +x self_host_compiler.exe
-          
           echo -e "\n--- Executing Self-Hosted Compiler Foundation ---"
           set +e
           echo -n ">++" | ./self_host_compiler.exe > test_output.txt
           RET=$?
           set -e
           echo "Status: $RET"
-          
           echo -e "\n--- Test Output ---"
           cat test_output.txt
