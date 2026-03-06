@@ -39,81 +39,23 @@ jobs:
         run: |
           cat << 'EOF' > generate_self_host.py
           def emit_output(char_code):
-            return f"""Z $OUT_CHAR x A $OUT_CHAR {char_code} x P $OUT_CHAR x
-          A $COUNT 1 x
-          C $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x U x
-          """
-          
+            return f"Z $OUT_CHAR x A $OUT_CHAR {char_code} x P $OUT_CHAR x\nA $COUNT 1 x\nC $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x U x\n"
           res = "Z $COUNT x\nZ $MAIN_LOOP x A $MAIN_LOOP 1 x\nW $MAIN_LOOP x\n"
           res += "I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x C $EOF_CHECK $CMP x F $CMP 0 x Z $MAIN_LOOP x U x\n"
           res += "C $MAIN_LOOP $CMP x F $CMP 1 x\nZ $PROCESSED x\n"
-          
           basics = {62:49, 60:50, 43:51, 45:52, 46:53, 44:54, 91:55, 93:56}
           for in_c, out_c in basics.items():
             res += f"C $CHAR $CMP x F $CMP {in_c} x A $PROCESSED 1 x\n" + emit_output(out_c) + "U x\n"
-          
-          # Z (Zero)
-          res += "C $CHAR $CMP x F $CMP 90 x A $PROCESSED 1 x I $VAR x\n"
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
-          res += emit_output(55) + emit_output(52) + emit_output(56)
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
-          res += "U x\n"
-          
-          # A (Add)
-          res += "C $CHAR $CMP x F $CMP 65 x A $PROCESSED 1 x I $VAR x\n"
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
-          res += emit_output(51)
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
-          res += "U x\n"
-          
-          # S (Subtract)
-          res += "C $CHAR $CMP x F $CMP 83 x A $PROCESSED 1 x I $VAR x\n"
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
-          res += emit_output(52)
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
-          res += "U x\n"
-          
-          # P (Print)
-          res += "C $CHAR $CMP x F $CMP 80 x A $PROCESSED 1 x I $VAR x\n"
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
-          res += emit_output(53)
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
-          res += "U x\n"
-          
-          # I (Input)
-          res += "C $CHAR $CMP x F $CMP 73 x A $PROCESSED 1 x I $VAR x\n"
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
-          res += emit_output(54)
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
-          res += "U x\n"
-          
-          # W (While Start)
-          res += "C $CHAR $CMP x F $CMP 87 x A $PROCESSED 1 x I $VAR x\n"
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
-          res += emit_output(55)
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
-          res += "U x\n"
-          
-          # E (While End)
-          res += "C $CHAR $CMP x F $CMP 69 x A $PROCESSED 1 x I $VAR x\n"
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n"
-          res += emit_output(56)
-          res += "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\n"
-          res += "U x\n"
-          
+          res += "C $CHAR $CMP x F $CMP 90 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(55) + emit_output(52) + emit_output(56) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 65 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(51) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 83 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(52) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 80 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(53) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 73 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(54) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 87 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(55) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 69 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(56) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
           res += "U x\nE x\n"
-          
-          res += "Z $PAD_LOOP x\n"
-          res += "C $COUNT $CMP x F $CMP 1 x A $PAD_LOOP 1 x U x\n"
-          res += "C $COUNT $CMP x F $CMP 2 x A $PAD_LOOP 1 x U x\n"
-          res += "C $COUNT $CMP x F $CMP 3 x A $PAD_LOOP 1 x U x\n"
-          res += "C $COUNT $CMP x F $CMP 4 x A $PAD_LOOP 1 x U x\n"
-          res += "W $PAD_LOOP x\n"
-          res += "Z $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x\n"
-          res += "A $COUNT 1 x\n"
-          res += "C $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x Z $PAD_LOOP x U x\n"
-          res += "E x\n"
-          
+          res += "Z $PAD_LOOP x\nC $COUNT $CMP x F $CMP 1 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 2 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 3 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 4 x A $PAD_LOOP 1 x U x\n"
+          res += "W $PAD_LOOP x\nZ $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x\nA $COUNT 1 x\nC $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x Z $PAD_LOOP x U x\nE x\n"
           with open('source_self_host_compiler.txt', 'w') as f:
             f.write(res)
           EOF
@@ -122,21 +64,60 @@ jobs:
           cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.c
           gcc -O3 self_host_compiler.c -o self_host_compiler.exe
           chmod +x self_host_compiler.exe
+      - name: Achieve True Self-Hosting (Bootstrapping)
+        run: |
+          cat << 'EOF' > generate_v3.py
+          def copy(src, dst, scratch='0'):
+            return f"Z{dst}Z{scratch}W{src}A{dst}A{scratch}S{src}E{src}W{scratch}A{src}S{scratch}E{scratch}"
+          def if_eq(var, val, inner, flag='f', temp='t', scratch='0'):
+            res = copy(var, temp, scratch)
+            res += f"S{temp}" * val
+            res += f"Z{flag}A{flag}W{temp}Z{flag}Z{temp}E{temp}W{flag}" + inner + f"Z{flag}E{flag}"
+            return res
+          def out_c(val):
+            return f"Zo" + f"Ao" * val + f"Po"
+          def inc_x():
+            return f"Ax" + if_eq('x', 5, out_c(120) + f"Zx", flag='g', temp='u', scratch='1')
+          def emit_basic(in_char, out_char):
+            return if_eq('c', in_char, out_c(out_char) + inc_x())
+          def rtz_loop(char_to_emit):
+            return copy('v', 't', '0') + f"Wt" + out_c(char_to_emit) + inc_x() + f"StEt"
+          def emit_macro(cmd_char, inner_macro_logic):
+            return if_eq('c', cmd_char, f"Iv" + inner_macro_logic)
+          code = "Zx" + "ZlAl" + "Wl" + "Ic"
+          code += copy('c', 't', '0') + "At" + "ZfAfWtZfZtEtWf" + "Zl" + "ZfEf"
+          basics = {62:49, 60:50, 43:51, 45:52, 46:53, 44:54, 91:55, 93:56}
+          for in_c, out_val in basics.items():
+            code += emit_basic(in_c, out_val)
+          code += emit_macro(90, rtz_loop(49) + out_c(55) + inc_x() + out_c(52) + inc_x() + out_c(56) + inc_x() + rtz_loop(50))
+          code += emit_macro(65, rtz_loop(49) + out_c(51) + inc_x() + rtz_loop(50))
+          code += emit_macro(83, rtz_loop(49) + out_c(52) + inc_x() + rtz_loop(50))
+          code += emit_macro(80, rtz_loop(49) + out_c(53) + inc_x() + rtz_loop(50))
+          code += emit_macro(73, rtz_loop(49) + out_c(54) + inc_x() + rtz_loop(50))
+          code += emit_macro(87, rtz_loop(49) + out_c(55) + inc_x() + rtz_loop(50))
+          code += emit_macro(69, rtz_loop(49) + out_c(56) + inc_x() + rtz_loop(50))
+          code += "El"
+          code += "Wx" + out_c(48) + inc_x() + "Ex"
+          with open('compiler_v3_source.txt', 'w') as f:
+            f.write(code)
+          EOF
+          python3 generate_v3.py
           
-          echo -e "\n--- Step 1: Compiling V2 Logic with Self-Hosted Compiler ---"
-          set +e
-          echo -n "Z!A!A!A!W!P!S!E!" | ./self_host_compiler.exe > test_app.rib
-          RET=$?
-          set -e
+          echo -e "\n--- Step 1: Compiling V3 Source with V2 Native Compiler ---"
+          cat compiler_v3_source.txt | ./self_host_compiler.exe > compiler_v3.rib
           
-          echo -e "\n--- Step 2: Transpiling and Executing Native Binary ---"
-          cat test_app.rib | ./ribbothon ultimate_aot.rib > test_app.c
-          gcc -O3 test_app.c -o test_app.exe
-          set +e
-          ./test_app.exe > test_run.txt
-          RET=$?
-          set -e
-          echo "Status: $RET"
+          echo -e "\n--- Step 2: Compiling V3 Source with V3 Native Compiler (Bootstrapping) ---"
+          cat compiler_v3.rib | ./ribbothon ultimate_aot.rib > compiler_v3.c
+          gcc -O3 compiler_v3.c -o compiler_v3.exe
+          chmod +x compiler_v3.exe
           
-          echo -e "\n--- Hexdump of the Execution Output (Expected 03 02 01) ---"
-          hexdump -C test_run.txt
+          cat compiler_v3_source.txt | ./compiler_v3.exe > compiler_v4.rib
+          
+          echo -e "\n--- Step 3: Verifying Identical Output (The Holy Grail) ---"
+          if cmp -s compiler_v3.rib compiler_v4.rib; then
+              echo "SUCCESS: Self-Hosting Achieved! The compiler successfully compiled itself!"
+              md5sum compiler_v3.rib
+          else
+              echo "FAIL: Outputs differ."
+              exit 1
+          fi
