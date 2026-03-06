@@ -58,9 +58,7 @@ jobs:
               f.write("C $CMP $CHAR x F $CMP 51 x\n" + emit_bytes([0x43, 0xFE, 0x04, 0x37]) + "U x\n")
               f.write("C $CMP $CHAR x F $CMP 52 x\n" + emit_bytes([0x43, 0xFE, 0x0C, 0x37]) + "U x\n")
               
-              # 5: . (出力: leaをやめて、確実な mov + add に変更)
               f.write("C $CMP $CHAR x F $CMP 53 x\n" + emit_bytes([0xB8, 0x01, 0x00, 0x00, 0x00, 0xBF, 0x01, 0x00, 0x00, 0x00, 0x4C, 0x89, 0xFE, 0x4C, 0x01, 0xF6, 0xBA, 0x01, 0x00, 0x00, 0x00, 0x0F, 0x05]) + "U x\n")
-              # 6: , (入力: 同上)
               f.write("C $CMP $CHAR x F $CMP 54 x\n" + emit_bytes([0x31, 0xC0, 0x31, 0xFF, 0x4C, 0x89, 0xFE, 0x4C, 0x01, 0xF6, 0xBA, 0x01, 0x00, 0x00, 0x00, 0x0F, 0x05]) + "U x\n")
               
               f.write("C $CMP $CHAR x F $CMP 55 x\n")
@@ -91,7 +89,6 @@ jobs:
           ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
           
           echo -e "\n--- Step 1: Writing pure Ribbothon Loop Program 'A' ---"
-          # ++++++[>++++++++++<-]>+++++.
           echo -n "3333337133333333332481333335" > my_app.rib
           
           echo -e "\n--- Step 2: Compiling 'my_app.rib' to Native Linux Executable ---"
@@ -143,5 +140,13 @@ jobs:
           ./meta_compiler < source_self_host_compiler.txt > self_host_compiler.rib
           cat self_host_compiler.rib | ./ribbothon ultimate_aot.rib > self_host_compiler.exe
           chmod +x self_host_compiler.exe
+          
+          echo -e "\n--- Executing Self-Hosted Compiler Foundation ---"
+          set +e
           echo ">" | ./self_host_compiler.exe > test_output.txt
+          RET=$?
+          set -e
+          echo "Status: $RET"
+          
+          echo -e "\n--- Test Output ---"
           cat test_output.txt
