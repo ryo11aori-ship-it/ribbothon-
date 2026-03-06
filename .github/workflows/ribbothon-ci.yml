@@ -113,27 +113,52 @@ jobs:
         run: |
           cat << 'EOF' > source_self_host_compiler.txt
           Z $COUNT x
-          Z $CHAR x
-          Z $OUT_CHAR x
+          Z $MAIN_LOOP x
+          A $MAIN_LOOP 1 x
           W $MAIN_LOOP x
+          Z $CHAR x
           I $CHAR x
           C $CHAR $EOF_CHECK x
           A $EOF_CHECK 1 x
-          C $CMP $EOF_CHECK x
+          C $EOF_CHECK $CMP x
           F $CMP 0 x
-          E x
+          Z $MAIN_LOOP x
           U x
+          C $MAIN_LOOP $CMP x
+          F $CMP 1 x
           Z $PROCESSED x
-          C $CMP $CHAR x F $CMP 62 x A $OUT_CHAR 49 x A $PROCESSED 1 x U x
-          C $CMP $PROCESSED x F $CMP 1 x
+          Z $OUT_CHAR x
+          C $CHAR $CMP x F $CMP 62 x A $OUT_CHAR 49 x A $PROCESSED 1 x U x
+          C $CHAR $CMP x F $CMP 60 x A $OUT_CHAR 50 x A $PROCESSED 1 x U x
+          C $CHAR $CMP x F $CMP 43 x A $OUT_CHAR 51 x A $PROCESSED 1 x U x
+          C $CHAR $CMP x F $CMP 45 x A $OUT_CHAR 52 x A $PROCESSED 1 x U x
+          C $CHAR $CMP x F $CMP 46 x A $OUT_CHAR 53 x A $PROCESSED 1 x U x
+          C $CHAR $CMP x F $CMP 44 x A $OUT_CHAR 54 x A $PROCESSED 1 x U x
+          C $CHAR $CMP x F $CMP 91 x A $OUT_CHAR 55 x A $PROCESSED 1 x U x
+          C $CHAR $CMP x F $CMP 93 x A $OUT_CHAR 56 x A $PROCESSED 1 x U x
+          C $PROCESSED $CMP x F $CMP 1 x
           P $OUT_CHAR x
           A $COUNT 1 x
-          C $CMP $COUNT x F $CMP 5 x
+          C $COUNT $CMP x F $CMP 5 x
           Z $OUT_X x A $OUT_X 120 x P $OUT_X x
           Z $COUNT x
           U x
-          Z $OUT_CHAR x
-          Z $PROCESSED x
+          U x
+          U x
+          E x
+          Z $PAD_LOOP x
+          C $COUNT $CMP x
+          F $CMP 1 x A $PAD_LOOP 1 x U x
+          F $CMP 2 x A $PAD_LOOP 1 x U x
+          F $CMP 3 x A $PAD_LOOP 1 x U x
+          F $CMP 4 x A $PAD_LOOP 1 x U x
+          W $PAD_LOOP x
+          Z $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x
+          A $COUNT 1 x
+          C $COUNT $CMP x F $CMP 5 x
+          Z $OUT_X x A $OUT_X 120 x P $OUT_X x
+          Z $COUNT x
+          Z $PAD_LOOP x
           U x
           E x
           EOF
@@ -143,7 +168,7 @@ jobs:
           
           echo -e "\n--- Executing Self-Hosted Compiler Foundation ---"
           set +e
-          echo ">" | ./self_host_compiler.exe > test_output.txt
+          echo -n ">++" | ./self_host_compiler.exe > test_output.txt
           RET=$?
           set -e
           echo "Status: $RET"
