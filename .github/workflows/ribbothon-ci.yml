@@ -29,7 +29,7 @@ jobs:
             f.write("C $CHAR $CMP x F $CMP 51 x\n" + emit_str("inc byte [rsi]\n") + "U x\n")
             f.write("C $CHAR $CMP x F $CMP 52 x\n" + emit_str("dec byte [rsi]\n") + "U x\n")
             f.write("C $CHAR $CMP x F $CMP 53 x\n" + emit_str("push rsi\nmov rax, 1\nmov rdi, 1\nmov rdx, 1\nsyscall\npop rsi\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 54 x\n" + emit_str("push rsi\nmov rax, 0\nmov rdi, 0\nmov rdx, 1\nsyscall\npop rsi\n") + "U x\n")
+            f.write("C $CHAR $CMP x F $CMP 54 x\n" + emit_str("%push I\npush rsi\nmov rax, 0\nmov rdi, 0\nmov rdx, 1\nsyscall\ncmp rax, 0\njg %$not_eof\npop rsi\nmov byte [rsi], 255\njmp %$done\n%$not_eof:\npop rsi\n%$done:\n%pop\n") + "U x\n")
             f.write("C $CHAR $CMP x F $CMP 55 x\n" + emit_str("%push L\ncmp byte [rsi], 0\nje %$end\n%$start:\n") + "U x\n")
             f.write("C $CHAR $CMP x F $CMP 56 x\n" + emit_str("cmp byte [rsi], 0\njne %$start\n%$end:\n%pop\n") + "U x\n")
             f.write("C $CHAR $CMP x F $CMP 57 x\n" + emit_str("add byte [rsi], 3\n") + "U x\n")
@@ -42,6 +42,31 @@ jobs:
           cat ultimate_aot.rib | ./ribbothon ultimate_aot.rib > ultimate_aot.asm
           nasm -f elf64 ultimate_aot.asm -o ultimate_aot.o
           ld ultimate_aot.o -o ultimate_aot.exe
+      - name: Prepare Stage 1 Source (V2 Syntax)
+        run: |
+          cat << 'EOF' > generate_self_host.py
+          def emit_output(char_code):
+            return f"Z $OUT_CHAR x A $OUT_CHAR {char_code} x P $OUT_CHAR x\nA $COUNT 1 x\nC $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x U x\n"
+          res = "Z $COUNT x\nZ $MAIN_LOOP x A $MAIN_LOOP 1 x\nW $MAIN_LOOP x\n"
+          res += "I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x C $EOF_CHECK $CMP x F $CMP 0 x Z $MAIN_LOOP x U x\n"
+          res += "C $MAIN_LOOP $CMP x F $CMP 1 x\nZ $PROCESSED x\n"
+          basics = {62:49, 60:50, 43:51, 45:52, 46:53, 44:54, 91:55, 93:56}
+          for in_c, out_c in basics.items():
+            res += f"C $CHAR $CMP x F $CMP {in_c} x A $PROCESSED 1 x\n" + emit_output(out_c) + "U x\n"
+          res += "C $CHAR $CMP x F $CMP 90 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(55) + emit_output(52) + emit_output(56) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 65 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(51) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 83 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(52) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 80 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(53) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 73 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(54) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 87 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(55) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "C $CHAR $CMP x F $CMP 69 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(56) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
+          res += "U x\nE x\n"
+          res += "Z $PAD_LOOP x\nC $COUNT $CMP x F $CMP 1 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 2 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 3 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 4 x A $PAD_LOOP 1 x U x\n"
+          res += "W $PAD_LOOP x\nZ $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x\nA $COUNT 1 x\nC $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x Z $PAD_LOOP x U x\nE x\n"
+          with open('source_self_host_compiler.txt', 'w') as f:
+            f.write(res)
+          EOF
+          python3 generate_self_host.py
       - name: Prepare V3 Source (Pure Ribbothon Macros)
         run: |
           cat << 'EOF' > generate_v3.py
@@ -82,7 +107,7 @@ jobs:
           python3 generate_v3.py
       - name: Build Stage 1 (S1) Compiler
         run: |
-          ./meta_compiler < compiler_v3_source.txt > compiler_v1.rib
+          ./meta_compiler < source_self_host_compiler.txt > compiler_v1.rib
           set +e
           cat compiler_v1.rib | ./ultimate_aot.exe > compiler_v1.asm
           set -e
@@ -92,15 +117,17 @@ jobs:
         run: |
           set +e
           cat compiler_v3_source.txt | ./compiler_v1.exe > compiler_v2.rib
-          set -e
-          set +e
           cat compiler_v2.rib | ./ultimate_aot.exe > compiler_v2.asm
           set -e
           nasm -f elf64 compiler_v2.asm -o compiler_v2.o
           ld compiler_v2.o -o compiler_v2.exe
+          
           set +e
           cat compiler_v3_source.txt | ./compiler_v2.exe > compiler_v3.rib
+          cat compiler_v3.rib | ./ultimate_aot.exe > compiler_v3.asm
           set -e
+          nasm -f elf64 compiler_v3.asm -o compiler_v3.o
+          ld compiler_v3.o -o compiler_v3.exe
       - name: Canonicalize and Strict SHA-256 Check
         run: |
           cat << 'EOF' > canonicalize.py
@@ -127,17 +154,19 @@ jobs:
         run: |
           echo -n "Z!A!A!P!S!P!" > test_prog.txt
           set +e
-          cat test_prog.txt | ./compiler_v1.exe > test_prog_v2.rib
+          cat test_prog.txt | ./compiler_v2.exe > test_prog_v2.rib
           cat test_prog_v2.rib | ./ultimate_aot.exe > test_prog_v2.asm
           set -e
           nasm -f elf64 test_prog_v2.asm -o test_prog_v2.o
           ld test_prog_v2.o -o test_prog_v2.exe
+          
           set +e
-          cat test_prog.txt | ./compiler_v2.exe > test_prog_v3.rib
+          cat test_prog.txt | ./compiler_v3.exe > test_prog_v3.rib
           cat test_prog_v3.rib | ./ultimate_aot.exe > test_prog_v3.asm
           set -e
           nasm -f elf64 test_prog_v3.asm -o test_prog_v3.o
           ld test_prog_v3.o -o test_prog_v3.exe
+          
           set +e
           ./test_prog_v2.exe > out_v2.txt
           ./test_prog_v3.exe > out_v3.txt
