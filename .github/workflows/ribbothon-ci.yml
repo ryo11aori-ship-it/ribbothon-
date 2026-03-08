@@ -178,7 +178,8 @@ jobs:
             echo "FAIL: Behavioral mismatch."
             exit 1
           fi
-       - name: Upload All Generated Artifacts
+       
+      - name: Upload All Generated Artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
