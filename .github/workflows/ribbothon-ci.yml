@@ -42,7 +42,9 @@ jobs:
                           self.code[pos+1] = (off >> 8) & 0xFF
                   return self.code
           a = Asm()
-          a.emit(0xFC, 0x31, 0xC0, 0x8E, 0xC0, 0x8E, 0xD8)
+          
+          # 究極の防壁: CLI(0xFA)でタイマー割り込みを完全遮断し、CLD(0xFC)でテープを浄化する
+          a.emit(0xFA, 0xFC, 0x31, 0xC0, 0x8E, 0xC0, 0x8E, 0xD8)
           a.emit(0xBF, 0x00, 0x10, 0xB9, 0x00, 0x10, 0xF3, 0xAB)
           a.emit(0xBE, 0x00, 0x00, 0xBB, 0x00, 0x10)
           a.label("loop")
@@ -87,11 +89,11 @@ jobs:
           
           c = a.resolve()
           addr = 0x7E00 + 50 + len(c)
-          c[16], c[17] = addr & 0xFF, (addr >> 8) & 0xFF
+          # 1バイト追加されたためパッチ位置を c[17], c[18] にシフト
+          c[17], c[18] = addr & 0xFF, (addr >> 8) & 0xFF
           
           out = ["A $MAIN_LOOP 1 x"]
           for b in c:
-              # Sマクロを捨て、確実にA(加算)のみで出力する
               out.append(f"Z $O x A $O {b} x P $O x")
                   
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
