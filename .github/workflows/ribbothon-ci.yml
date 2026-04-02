@@ -173,6 +173,7 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
           
+          # UART決壊を防ぐ究極の1バイト転送（timeout 300秒で確実性を担保）
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
@@ -186,7 +187,7 @@ jobs:
           time.sleep(10)
           EOF
           
-          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
           
           cat << 'EOF' > make_os.py
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
@@ -194,13 +195,15 @@ jobs:
           boot += bytearray([0xB8,0x00,0x20,0x8E,0xD8,0x8E,0xC0,0xB9,0x00,0x80,0x31,0xC0,0xBF,0x00,0x00,0xF3,0xAB,0xBF,0x00,0x00,0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE])
           payload = open("compiler2.bin", "rb").read()
           final_img = boot + payload + bytearray([0xFA, 0xF4, 0xEB, 0xFD])
+          
           # 究極の回避策: 10MBにパディングしてハードディスクのジオメトリを確定させ、読み込みエラーを完全に防ぐ
           final_img += bytearray(10 * 1024 * 1024 - len(final_img))
+          
           open("void_os2.img", "wb").write(final_img)
           EOF
           python3 make_os.py
           
-          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
           
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
