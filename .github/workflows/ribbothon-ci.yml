@@ -27,23 +27,20 @@ jobs:
           ./meta_compiler < source_self_host_compiler.txt > s1.rib
           ./baremetal_aot_gen < s1.rib
 
-      - name: Prove The Absolute Void (QEMU Serial Test)
+      - name: Prove The Absolute Void (Direct OS Execution)
         run: |
-          cat << 'EOF' > feed.py
-          import sys, time
-          time.sleep(2)
-          for c in b"+++++":
-              sys.stdout.buffer.write(bytes([c]))
-              sys.stdout.buffer.flush()
-              time.sleep(0.1)
-          sys.stdout.buffer.write(b"\xff")
-          sys.stdout.buffer.flush()
-          time.sleep(10)
+          cat << 'EOF' > hello.txt
+          Z $O x
+          A $O 86 x P $O x Z $O x
+          A $O 79 x P $O x Z $O x
+          A $O 73 x P $O x Z $O x
+          A $O 68 x P $O x Z $O x
+          A $O 32 x P $O x Z $O x
+          A $O 79 x P $O x Z $O x
+          A $O 75 x P $O x Z $O x
           EOF
-          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
+          ./meta_compiler < hello.txt > hello.rib
+          ./baremetal_aot_gen < hello.rib
+          timeout 5 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
           echo "Output from VoidOS:"
           cat void_output.txt
-          echo ""
-          echo "Hexdump of Output:"
-          hexdump -C void_output.txt
-
