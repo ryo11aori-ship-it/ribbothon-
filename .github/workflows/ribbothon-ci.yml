@@ -71,21 +71,75 @@ jobs:
           a.label("s8")
           a.jmp16("loop")
           a.label("halt"); a.emit(0xFA, 0xF4, 0xEB, 0xFD)
-          
           c = a.resolve()
           addr = 0x7E00 + len(c)
           c[1], c[2] = addr & 0xFF, (addr >> 8) & 0xFF
-          
           out = ["A $MAIN_LOOP 1 x"]
           for b in c: out.append(f"Z $O x A $O {b} x P $O x")
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
-          
           open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
           EOF
           python3 build_pure_s1.py
           ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
           ./baremetal_aot_gen < pure_s1.rib
-
+      - name: Prove The Absolute Void (Pure Native Compilation)
+        run: |
+          cat << 'EOF' > feed.py
+          import sys, time
+          time.sleep(2)
+          for c in b"1234":
+              sys.stdout.buffer.write(bytes([c]))
+              sys.stdout.buffer.flush()
+              time.sleep(0.1)
+          sys.stdout.buffer.write(b"\xff")
+          sys.stdout.buffer.flush()
+          time.sleep(10)
+          EOF
+          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
+          echo "Output from VoidOS:"
+          cat void_output.txt
+          echo ""
+          echo "Hexdump of Output:"
+          hexdump -C void_output.txt
+      - name: Prove Determinism (Quad-Crown DDC)
+        run: |
+          sudo apt-get install -y clang tcc
+          gcc -O3 baremetal_aot_gen.c -o gen_gcc
+          clang -O3 baremetal_aot_gen.c -o gen_clang
+          tcc baremetal_aot_gen.c -o gen_tcc
+          ./gen_gcc < pure_s1.rib
+          mv void_os.img os_gcc.img
+          ./gen_clang < pure_s1.rib
+          mv void_os.img os_clang.img
+          ./gen_tcc < pure_s1.rib
+          mv void_os.img os_tcc.img
+          HASH_GCC=$(sha256sum os_gcc.img | awk '{print $1}')
+          HASH_CLANG=$(sha256sum os_clang.img | awk '{print $1}')
+          HASH_TCC=$(sha256sum os_tcc.img | awk '{print $1}')
+          echo "GCC OS Hash:   $HASH_GCC"
+          echo "Clang OS Hash: $HASH_CLANG"
+          echo "TCC OS Hash:   $HASH_TCC"
+          if [ "$HASH_GCC" != "$HASH_CLANG" ] || [ "$HASH_GCC" != "$HASH_TCC" ]; then echo "FAIL: DDC Mismatch!"; exit 1; fi
+          echo "SUCCESS: Absolute compiler determinism proven."
+      - name: Dual-Oracle Semantic Validation (Host VM vs Baremetal)
+        run: |
+          printf "1234\xff" > pure_input.bin
+          ./ribbothon pure_s1.rib < pure_input.bin > host_out.bin
+          echo "Host VM (C Interpreter) Hexdump:"
+          hexdump -C host_out.bin
+          echo "Baremetal VM (Native VoidOS) Hexdump:"
+          hexdump -C void_output.txt
+          if cmp -s host_out.bin void_output.txt; then echo "SUCCESS: Dual-Oracle logic perfectly matched across dimensions."; else echo "FAIL: Semantic mismatch between C-VM and Baremetal!"; exit 1; fi
+      - name: Mutation Testing (Source Corruption Catch)
+        run: |
+          sed 's/A $O 67 x/A $O 68 x/' pure_s1_meta.txt > mutated_meta.txt
+          ./meta_compiler < mutated_meta.txt > mutated.rib
+          ./baremetal_aot_gen < mutated.rib
+          mv void_os.img mutated_os.img
+          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=mutated_os.img -display none -serial stdio > mutated_out.bin || true
+          echo "Mutated Baremetal VM Hexdump:"
+          hexdump -C mutated_out.bin
+          if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
       - name: Prove Semantic Stability (Fixed-Point Hash Verification)
         run: |
           echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
@@ -115,87 +169,6 @@ jobs:
           EOF
           python3 make_os.py
           python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
-          SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
-          COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
-          COMPILER2_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
-          echo "Seed (C-origin):   $SEED_HASH"
-          echo "Compiler (Gen 1):  $COMPILER1_HASH"
-          echo "Compiler2 (Gen 2): $COMPILER2_HASH"
-          if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
-          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ]; then echo "❌ FIXED POINT MISMATCH" && exit 1; fi
-          echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
-
-      - name: Prove Determinism (Quad-Crown DDC)
-        run: |
-          sudo apt-get install -y clang tcc
-          gcc -O3 baremetal_aot_gen.c -o gen_gcc
-          clang -O3 baremetal_aot_gen.c -o gen_clang
-          tcc baremetal_aot_gen.c -o gen_tcc
-          ./gen_gcc < pure_s1.rib
-          mv void_os.img os_gcc.img
-          ./gen_clang < pure_s1.rib
-          mv void_os.img os_clang.img
-          ./gen_tcc < pure_s1.rib
-          mv void_os.img os_tcc.img
-          HASH_GCC=$(sha256sum os_gcc.img | awk '{print $1}')
-          HASH_CLANG=$(sha256sum os_clang.img | awk '{print $1}')
-          HASH_TCC=$(sha256sum os_tcc.img | awk '{print $1}')
-          echo "GCC OS Hash:   $HASH_GCC"
-          echo "Clang OS Hash: $HASH_CLANG"
-          echo "TCC OS Hash:   $HASH_TCC"
-          if [ "$HASH_GCC" != "$HASH_CLANG" ] || [ "$HASH_GCC" != "$HASH_TCC" ]; then echo "FAIL: DDC Mismatch!"; exit 1; fi
-          echo "SUCCESS: Absolute compiler determinism proven."
-
-      - name: Dual-Oracle Semantic Validation (Host VM vs Baremetal)
-        run: |
-          printf "1234\xff" > pure_input.bin
-          ./ribbothon pure_s1.rib < pure_input.bin > host_out.bin
-          echo "Host VM (C Interpreter) Hexdump:"
-          hexdump -C host_out.bin
-          echo "Baremetal VM (Native VoidOS) Hexdump:"
-          hexdump -C void_output.txt
-          if cmp -s host_out.bin void_output.txt; then echo "SUCCESS: Dual-Oracle logic perfectly matched across dimensions."; else echo "FAIL: Semantic mismatch between C-VM and Baremetal!"; exit 1; fi
-
-      - name: Mutation Testing (Source Corruption Catch)
-        run: |
-          sed 's/A $O 67 x/A $O 68 x/' pure_s1_meta.txt > mutated_meta.txt
-          ./meta_compiler < mutated_meta.txt > mutated.rib
-          ./baremetal_aot_gen < mutated.rib
-          mv void_os.img mutated_os.img
-          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=mutated_os.img -display none -serial stdio > mutated_out.bin || true
-          echo "Mutated Baremetal VM Hexdump:"
-          hexdump -C mutated_out.bin
-          if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
-
-      - name: Prove Semantic Stability (Fixed-Point Hash Verification)
-        run: |
-          echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
-          ./baremetal_aot_gen < pure_s1.rib
-          ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
-          cat << 'EOF' > feed_self.py
-          import sys, time
-          time.sleep(2)
-          data = open("pure_s1.rib", "rb").read()
-          for c in data:
-              sys.stdout.buffer.write(bytes([c]))
-              sys.stdout.buffer.flush()
-              time.sleep(0.01)
-          sys.stdout.buffer.write(b"\xff")
-          sys.stdout.buffer.flush()
-          time.sleep(10)
-          EOF
-          python3 feed_self.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
-          cat << 'EOF' > make_os.py
-          boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
-          boot += bytearray(510 - len(boot)) + bytearray([0x55, 0xAA])
-          boot += bytearray([0xB8,0x00,0x20,0x8E,0xD8,0x8E,0xC0,0xB9,0x00,0x80,0x31,0xC0,0xBF,0x00,0x00,0xF3,0xAB,0xBF,0x00,0x00,0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE])
-          payload = open("compiler2.bin", "rb").read()
-          final_img = boot + payload + bytearray([0xFA, 0xF4, 0xEB, 0xFD])
-          final_img += bytearray(63 * 512 - len(final_img))
-          open("void_os2.img", "wb").write(final_img)
-          EOF
-          python3 make_os.py
-          python3 feed_self.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
           COMPILER2_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
