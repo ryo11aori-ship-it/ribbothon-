@@ -22,83 +22,63 @@ jobs:
       - name: Generate Pure S1 (The Native Ribbothon Compiler)
         run: |
           cat << 'EOF' > build_pure_s1.py
-          import sys
-          code = bytearray()
-          def emit(*args): code.extend(args)
+          class Asm:
+              def __init__(self):
+                  self.code, self.labels, self.fixups = bytearray(), {}, []
+              def emit(self, *b): self.code.extend(b)
+              def label(self, n): self.labels[n] = len(self.code)
+              def jmp8(self, n): self.emit(0xEB, 0); self.fixups.append((len(self.code)-1, n))
+              def jcc8(self, op, n): self.emit(op, 0); self.fixups.append((len(self.code)-1, n))
+              def jmp16(self, n): self.emit(0xE9, 0, 0); self.fixups.append((len(self.code)-2, n, 16))
+              def resolve(self):
+                  for f in self.fixups:
+                      if len(f) == 2:
+                          pos, name = f
+                          self.code[pos] = (self.labels[name] - (pos + 1)) & 0xFF
+                      else:
+                          pos, name, _ = f
+                          off = self.labels[name] - (pos + 2)
+                          self.code[pos] = off & 0xFF
+                          self.code[pos+1] = (off >> 8) & 0xFF
+                  return self.code
+          a = Asm()
+          a.emit(0xBE, 0x00, 0x00, 0xBB, 0x00, 0x80)
+          a.label("loop")
+          a.emit(0xAC, 0x3C, 0xFF)
+          a.jcc8(0x74, "halt")
+          def cmd(c, b):
+              a.emit(0x3C, ord(c)); a.jcc8(0x75, f"s_{c}"); a.emit(*b); a.label(f"s_{c}")
+          cmd('1', [0x43]); cmd('2', [0x4B]); cmd('3', [0xFE, 0x07]); cmd('4', [0xFE, 0x0F])
+          cmd('9', [0x80, 0x07, 0x03]); cmd('a', [0x80, 0x2F, 0x03])
+          cmd('5', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
+          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xFA, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07])
+          a.emit(0x3C, ord('7')); a.jcc8(0x75, "s7")
+          a.emit(0x80, 0x3F, 0x00); a.jcc8(0x75, "s7")
+          a.emit(0xB9, 0x01, 0x00)
+          a.label("fwd")
+          a.emit(0xAC, 0x3C, ord('7')); a.jcc8(0x75, "nf7"); a.emit(0x41); a.label("nf7")
+          a.emit(0x3C, ord('8')); a.jcc8(0x75, "nf8"); a.emit(0x49); a.label("nf8")
+          a.emit(0x85, 0xC9); a.jcc8(0x75, "fwd")
+          a.label("s7")
+          a.emit(0x3C, ord('8')); a.jcc8(0x75, "s8")
+          a.emit(0x80, 0x3F, 0x00); a.jcc8(0x74, "s8")
+          a.emit(0xB9, 0x01, 0x00, 0x83, 0xEE, 0x02)
+          a.label("bwd")
+          a.emit(0x8A, 0x04, 0x3C, ord('8')); a.jcc8(0x75, "nb8"); a.emit(0x41); a.label("nb8")
+          a.emit(0x3C, ord('7')); a.jcc8(0x75, "nb7"); a.emit(0x49); a.label("nb7")
+          a.emit(0x85, 0xC9); a.jcc8(0x74, "found"); a.emit(0x4E); a.jmp8("bwd")
+          a.label("found"); a.emit(0x46)
+          a.label("s8")
+          a.jmp16("loop")
+          a.label("halt"); a.emit(0xFA, 0xF4, 0xEB, 0xFD)
           
-          # インタプリタの初期化 (siをソースコードの開始位置に設定)
-          emit(0xBE, 0x00, 0x00) # mov si, 0x0000 (後で正しいサイズにパッチ)
-          emit(0xBB, 0x00, 0x80) # mov bx, 0x8000 (メモリテープ)
-          loop_start = len(code)
-          emit(0xAC)             # lodsb
-          emit(0x3C, 0xFF)       # cmp al, 0xFF
-          emit(0x0F, 0x84, 0x00, 0x00) # je halt (後でパッチ)
-          halt_fixup = len(code)
+          c = a.resolve()
+          addr = 0x7E00 + len(c)
+          c[1], c[2] = addr & 0xFF, (addr >> 8) & 0xFF
           
-          def emit_char(c, *inst):
-              emit(0x3C, ord(c))
-              emit(0x75, len(inst))
-              emit(*inst)
-              
-          emit_char('1', 0x43)
-          emit_char('2', 0x4B)
-          emit_char('3', 0xFE, 0x07)
-          emit_char('4', 0xFE, 0x0F)
-          emit_char('9', 0x80, 0x07, 0x03)
-          emit_char('a', 0x80, 0x2F, 0x03)
-          emit_char('5', 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE)
-          emit_char('6', 0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xFA, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07)
-          
-          # ループ開始 '7' (実行時動的スキャン)
-          emit(0x3C, ord('7'))
-          emit(0x75, 18)
-          emit(0x80, 0x3F, 0x00)
-          emit(0x75, 13)
-          emit(0xB9, 0x01, 0x00)
-          sf = len(code)
-          emit(0xAC, 0x3C, ord('7'), 0x75, 0x01, 0x41, 0x3C, ord('8'), 0x75, 0x01, 0x49, 0x85, 0xC9)
-          emit(0x75, (sf - (len(code) + 2)) & 0xFF)
-          
-          # ループ終了 '8' (実行時動的スキャン)
-          emit(0x3C, ord('8'))
-          emit(0x75, 23)
-          emit(0x80, 0x3F, 0x00)
-          emit(0x74, 18)
-          emit(0xB9, 0x01, 0x00)
-          emit(0x83, 0xEE, 0x02)
-          sb = len(code)
-          emit(0x8A, 0x04, 0x4E, 0x3C, ord('8'), 0x75, 0x01, 0x41, 0x3C, ord('7'), 0x75, 0x01, 0x49, 0x85, 0xC9)
-          emit(0x75, (sb - (len(code) + 2)) & 0xFF)
-          emit(0x83, 0xC6, 0x02)
-          
-          off = loop_start - (len(code) + 3)
-          emit(0xE9, off & 0xFF, (off >> 8) & 0xFF)
-          
-          halt_addr = len(code)
-          code[halt_fixup-2] = (halt_addr - halt_fixup) & 0xFF
-          code[halt_fixup-1] = ((halt_addr - halt_fixup) >> 8) & 0xFF
-          emit(0xFA, 0xF4, 0xEB, 0xFD)
-          
-          # メモリロード位置(0x7E00)に基づくソース開始アドレスのパッチ
-          src_addr = 0x7E00 + len(code)
-          code[1] = src_addr & 0xFF
-          code[2] = (src_addr >> 8) & 0xFF
-          
-          # ----------------------------------------------------
-          # ここからQuineとしてのRibbothonメタ構文を生成
-          # ----------------------------------------------------
           out = ["A $MAIN_LOOP 1 x"]
-          
-          # 1. 130バイトのインタプリタ機械語を出力
-          for b in code: 
-              out.append(f"Z $O x A $O {b} x P $O x")
-              
-          # 2. 読み込んだ自分自身のソースコードをそのまま出力
-          out.append("W $MAIN_LOOP x")
-          out.append("Z $CHAR x I $CHAR x")
-          out.append("C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x")
-          out.append("C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x")
-          out.append("E x")
+          for b in c: out.append(f"Z $O x A $O {b} x P $O x")
+          out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
           
           open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
           EOF
@@ -106,26 +86,44 @@ jobs:
           ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
           ./baremetal_aot_gen < pure_s1.rib
 
-      - name: Prove The Absolute Void (Pure Native Compilation)
+      - name: Prove Semantic Stability (Fixed-Point Hash Verification)
         run: |
-          cat << 'EOF' > feed.py
+          echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
+          ./baremetal_aot_gen < pure_s1.rib
+          ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
+          cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
-          # テスト入力: Ribbothonの純粋な命令 '1234'
-          for c in b"1234":
-              sys.stdout.buffer.write(bytes([c]))
+          d = open("pure_s1.rib", "rb").read()
+          for i in range(0, len(d), 16):
+              sys.stdout.buffer.write(d[i:i+16])
               sys.stdout.buffer.flush()
-              time.sleep(0.1)
+              time.sleep(0.005)
           sys.stdout.buffer.write(b"\xff")
           sys.stdout.buffer.flush()
-          time.sleep(10)
+          time.sleep(5)
           EOF
-          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
-          echo "Output from VoidOS:"
-          cat void_output.txt
-          echo ""
-          echo "Hexdump of Output:"
-          hexdump -C void_output.txt
+          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          cat << 'EOF' > make_os.py
+          boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
+          boot += bytearray(510 - len(boot)) + bytearray([0x55, 0xAA])
+          boot += bytearray([0xB8,0x00,0x20,0x8E,0xD8,0x8E,0xC0,0xB9,0x00,0x80,0x31,0xC0,0xBF,0x00,0x00,0xF3,0xAB,0xBF,0x00,0x00,0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE])
+          payload = open("compiler2.bin", "rb").read()
+          final_img = boot + payload + bytearray([0xFA, 0xF4, 0xEB, 0xFD])
+          final_img += bytearray(63 * 512 - len(final_img))
+          open("void_os2.img", "wb").write(final_img)
+          EOF
+          python3 make_os.py
+          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
+          COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
+          COMPILER2_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
+          echo "Seed (C-origin):   $SEED_HASH"
+          echo "Compiler (Gen 1):  $COMPILER1_HASH"
+          echo "Compiler2 (Gen 2): $COMPILER2_HASH"
+          if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
+          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ]; then echo "❌ FIXED POINT MISMATCH" && exit 1; fi
+          echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
 
       - name: Prove Determinism (Quad-Crown DDC)
         run: |
