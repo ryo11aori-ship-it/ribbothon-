@@ -201,11 +201,13 @@ jobs:
           try:
               qemu.stdin.write(b"\xff")
               qemu.stdin.flush()
+              qemu.stdin.close()
           except BrokenPipeError:
               pass
           time.sleep(10)
           qemu.terminate()
           qemu.wait()
+          t.join()
           sys.stdout.buffer.write(output)
           EOF
           
