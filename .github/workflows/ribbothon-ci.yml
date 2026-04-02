@@ -175,7 +175,7 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           mv void_os.img void_os1.img
           
-          # 早とちりでQEMUを落とすバグを削除し、全データ送信完了まで確実に待機するPythonスクリプト
+          # デッドロックを防ぐため、バッファを詰まらせずに即座に読み取り、0xFFで綺麗に終了するスクリプト
           cat << 'EOF' > feed_self.py
           import sys, time, subprocess, threading
           
@@ -188,12 +188,19 @@ jobs:
           )
           
           output = bytearray()
+          done = threading.Event()
+          
           def read_output():
-              while True:
+              while not done.is_set():
+                  # 1バイトずつ読むが、パイプが閉じられたら抜ける
                   c = qemu.stdout.read(1)
                   if not c:
                       break
                   output.extend(c)
+                  # 0xFF が来たらコンパイル完了の合図
+                  if c == b'\xff':
+                      done.set()
+                      break
           
           t = threading.Thread(target=read_output)
           t.daemon = True
@@ -203,18 +210,27 @@ jobs:
           with open("pure_s1.rib", "rb") as f:
               d = f.read()
           
-          for c in d:
-              qemu.stdin.write(bytes([c]))
-              qemu.stdin.flush()
-              time.sleep(0.005)
+          # データを送る。ただし、完了フラグ(done)が立ったら送信を打ち切る
+          try:
+              for c in d:
+                  if done.is_set(): break
+                  qemu.stdin.write(bytes([c]))
+                  qemu.stdin.flush()
+                  time.sleep(0.005)
+              
+              if not done.is_set():
+                  qemu.stdin.write(b"\xff")
+                  qemu.stdin.flush()
+          except BrokenPipeError:
+              pass # 既にQEMUが終了している場合は無視
           
-          qemu.stdin.write(b"\xff")
-          qemu.stdin.flush()
+          # 完了を待つ (最大10秒)
+          done.wait(10)
           
-          time.sleep(10)
           qemu.terminate()
           qemu.wait()
           
+          # 標準出力へ結果をバイナリとしてそのまま吐き出す
           sys.stdout.buffer.write(output)
           EOF
           
