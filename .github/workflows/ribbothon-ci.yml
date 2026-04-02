@@ -42,7 +42,6 @@ jobs:
                           self.code[pos+1] = (off >> 8) & 0xFF
                   return self.code
           a = Asm()
-          # 究極の修正: ds, esをゼロ化し、テープ領域(0x1000)を完全にゼロクリアしてBIOSのノイズを浄化する
           a.emit(0x31, 0xC0, 0x8E, 0xC0, 0x8E, 0xD8)
           a.emit(0xBF, 0x00, 0x10, 0xB9, 0x00, 0x10, 0xF3, 0xAB)
           a.emit(0xBE, 0x00, 0x00, 0xBB, 0x00, 0x10)
@@ -81,7 +80,9 @@ jobs:
           
           out = ["A $MAIN_LOOP 1 x"]
           for b in c: out.append(f"Z $O x A $O {b} x P $O x")
-          out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
+          
+          # 究極の修正: EOFを受け取った際に自ら P $CHAR x で 0xFF を出力し、安全にインタプリタを停止させる
+          out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
           
           open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
           EOF
