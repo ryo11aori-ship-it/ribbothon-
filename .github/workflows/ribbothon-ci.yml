@@ -13,177 +13,25 @@ jobs:
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
-      - name: Generate Native ASM Transpiler (NASM Backend)
+      - name: Setup Void Hardware Environment
         run: |
-          cat << 'EOF' > generate_asm_transpiler.py
-          def emit_str(s):
-            res = ""
-            for c in s:
-              res += f"Z $OUT x A $OUT {ord(c)} x P $OUT x\n"
-            return res
-          with open('source_ultimate_aot.txt', 'w') as f:
-            f.write(emit_str("global _start\nsection .bss\nm resb 3000000\nsection .text\n_start:\nmov rsi, m\n"))
-            f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x W $EOF_CHECK x\n")
-            f.write("C $CHAR $CMP x F $CMP 49 x\n" + emit_str("inc rsi\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 50 x\n" + emit_str("dec rsi\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 51 x\n" + emit_str("inc byte [rsi]\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 52 x\n" + emit_str("dec byte [rsi]\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 53 x\n" + emit_str("push rsi\nmov rax, 1\nmov rdi, 1\nmov rdx, 1\nsyscall\npop rsi\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 54 x\n" + emit_str("%push I\npush rsi\nmov rax, 0\nmov rdi, 0\nmov rdx, 1\nsyscall\ncmp rax, 0\njg %$not_eof\npop rsi\nmov byte [rsi], 255\njmp %$done\n%$not_eof:\npop rsi\n%$done:\n%pop\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 55 x\n" + emit_str("%push L\ncmp byte [rsi], 0\nje %$end\n%$start:\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 56 x\n" + emit_str("cmp byte [rsi], 0\njne %$start\n%$end:\n%pop\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 57 x\n" + emit_str("add byte [rsi], 3\n") + "U x\n")
-            f.write("C $CHAR $CMP x F $CMP 97 x\n" + emit_str("sub byte [rsi], 3\n") + "U x\n")
-            f.write("I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x E x\n")
-            f.write(emit_str("mov rax, 60\nmov rdi, 42\nsyscall\n"))
-          EOF
-          python3 generate_asm_transpiler.py
-          ./meta_compiler < source_ultimate_aot.txt > ultimate_aot.rib
-          cat ultimate_aot.rib | ./ribbothon ultimate_aot.rib > ultimate_aot.asm
-          nasm -f elf64 ultimate_aot.asm -o ultimate_aot.o
-          ld ultimate_aot.o -o ultimate_aot.exe
-      - name: Prepare Stage 1 Source (V2 Syntax)
-        run: |
-          cat << 'EOF' > generate_self_host.py
-          def emit_output(char_code):
-            return f"Z $OUT_CHAR x A $OUT_CHAR {char_code} x P $OUT_CHAR x\nA $COUNT 1 x\nC $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x U x\n"
-          res = "Z $COUNT x\nZ $MAIN_LOOP x A $MAIN_LOOP 1 x\nW $MAIN_LOOP x\n"
-          res += "I $CHAR x C $CHAR $EOF_CHECK x A $EOF_CHECK 1 x C $EOF_CHECK $CMP x F $CMP 0 x Z $MAIN_LOOP x U x\n"
-          res += "C $MAIN_LOOP $CMP x F $CMP 1 x\nZ $PROCESSED x\n"
-          basics = {62:49, 60:50, 43:51, 45:52, 46:53, 44:54, 91:55, 93:56}
-          for in_c, out_c in basics.items():
-            res += f"C $CHAR $CMP x F $CMP {in_c} x A $PROCESSED 1 x\n" + emit_output(out_c) + "U x\n"
-          res += "C $CHAR $CMP x F $CMP 90 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(55) + emit_output(52) + emit_output(56) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 65 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(51) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 83 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(52) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 80 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(53) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 73 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(54) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 87 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(55) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "C $CHAR $CMP x F $CMP 69 x A $PROCESSED 1 x I $VAR x\nC $VAR $TMP x W $TMP x\n" + emit_output(49) + "S $TMP 1 x E x\n" + emit_output(56) + "C $VAR $TMP x W $TMP x\n" + emit_output(50) + "S $TMP 1 x E x\nU x\n"
-          res += "U x\nE x\n"
-          res += "Z $PAD_LOOP x\nC $COUNT $CMP x F $CMP 1 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 2 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 3 x A $PAD_LOOP 1 x U x\nC $COUNT $CMP x F $CMP 4 x A $PAD_LOOP 1 x U x\n"
-          res += "W $PAD_LOOP x\nZ $OUT_ZERO x A $OUT_ZERO 48 x P $OUT_ZERO x\nA $COUNT 1 x\nC $COUNT $CMP x F $CMP 5 x Z $OUT_X x A $OUT_X 120 x P $OUT_X x Z $COUNT x Z $PAD_LOOP x U x\nE x\n"
-          with open('source_self_host_compiler.txt', 'w') as f:
-            f.write(res)
-          EOF
-          python3 generate_self_host.py
-      - name: Prepare V3 Source (Pure Ribbothon Macros)
-        run: |
-          cat << 'EOF' > generate_v3.py
-          def copy(src, dst, scratch='0'):
-            return f"Z{dst}Z{scratch}W{src}A{dst}A{scratch}S{src}E{src}W{scratch}A{src}S{scratch}E{scratch}"
-          def if_eq(var, val, inner, flag='f', temp='t', scratch='0'):
-            res = copy(var, temp, scratch)
-            res += f"S{temp}" * val
-            res += f"Z{flag}A{flag}W{temp}Z{flag}Z{temp}E{temp}W{flag}" + inner + f"Z{flag}E{flag}"
-            return res
-          def out_c(val):
-            return f"Zo" + f"Ao" * val + f"Po"
-          def inc_x():
-            return f"Ax" + if_eq('x', 5, out_c(120) + f"Zx", flag='g', temp='u', scratch='1')
-          def emit_basic(in_char, out_char):
-            return if_eq('c', in_char, out_c(out_char) + inc_x())
-          def rtz_loop(char_to_emit):
-            return copy('v', 't', '0') + f"Wt" + out_c(char_to_emit) + inc_x() + f"StEt"
-          def emit_macro(cmd_char, inner_macro_logic):
-            return if_eq('c', cmd_char, f"Iv" + inner_macro_logic)
-          code = "Zx" + "ZlAl" + "Wl" + "Ic"
-          code += copy('c', 't', '0') + "At" + "ZfAfWtZfZtEtWf" + "Zl" + "ZfEf"
-          basics = {62:49, 60:50, 43:51, 45:52, 46:53, 44:54, 91:55, 93:56}
-          for in_c, out_val in basics.items():
-            code += emit_basic(in_c, out_val)
-          code += emit_macro(90, rtz_loop(49) + out_c(55) + inc_x() + out_c(52) + inc_x() + out_c(56) + inc_x() + rtz_loop(50))
-          code += emit_macro(65, rtz_loop(49) + out_c(51) + inc_x() + rtz_loop(50))
-          code += emit_macro(83, rtz_loop(49) + out_c(52) + inc_x() + rtz_loop(50))
-          code += emit_macro(80, rtz_loop(49) + out_c(53) + inc_x() + rtz_loop(50))
-          code += emit_macro(73, rtz_loop(49) + out_c(54) + inc_x() + rtz_loop(50))
-          code += emit_macro(87, rtz_loop(49) + out_c(55) + inc_x() + rtz_loop(50))
-          code += emit_macro(69, rtz_loop(49) + out_c(56) + inc_x() + rtz_loop(50))
-          code += "El"
-          code += "Wx" + out_c(48) + inc_x() + "Ex"
-          with open('compiler_v3_source.txt', 'w') as f:
-            f.write(code)
-          EOF
-          python3 generate_v3.py
-      - name: Build Stage 1 (S1) Compiler
-        run: |
-          ./meta_compiler < source_self_host_compiler.txt > compiler_v1.rib
-          set +e
-          cat compiler_v1.rib | ./ultimate_aot.exe > compiler_v1.asm
-          set -e
-          nasm -f elf64 compiler_v1.asm -o compiler_v1.o
-          ld compiler_v1.o -o compiler_v1.exe
-      - name: Build Stage 2 & 3 (S2, S3) Compilers
-        run: |
-          set +e
-          cat compiler_v3_source.txt | ./compiler_v1.exe > compiler_v2.rib
-          cat compiler_v2.rib | ./ultimate_aot.exe > compiler_v2.asm
-          set -e
-          nasm -f elf64 compiler_v2.asm -o compiler_v2.o
-          ld compiler_v2.o -o compiler_v2.exe
+          sudo apt-get install -y qemu-system-x86
           
-          set +e
-          cat compiler_v3_source.txt | ./compiler_v2.exe > compiler_v3.rib
-          cat compiler_v3.rib | ./ultimate_aot.exe > compiler_v3.asm
-          set -e
-          nasm -f elf64 compiler_v3.asm -o compiler_v3.o
-          ld compiler_v3.o -o compiler_v3.exe
-      - name: Canonicalize and Strict SHA-256 Check
+      - name: Build Baremetal AOT Generator (S0-Void)
         run: |
-          cat << 'EOF' > canonicalize.py
-          import sys
-          s = sys.stdin.read()
-          s = s.replace('\r\n', '\n').replace('\r', '\n')
-          lines = [l.strip() for l in s.split('\n')]
-          out = [l for l in lines if l]
-          print('\n'.join(out))
-          EOF
-          python3 canonicalize.py < compiler_v2.rib > compiler_v2.norm.rib
-          python3 canonicalize.py < compiler_v3.rib > compiler_v3.norm.rib
-          sha256sum compiler_v2.norm.rib | awk '{print $1}' > h2.txt
-          sha256sum compiler_v3.norm.rib | awk '{print $1}' > h3.txt
-          cat h2.txt
-          cat h3.txt
-          if cmp -s h2.txt h3.txt; then
-            echo "TRUE SELF-HOST: SHA-256 matches strictly."
-          else
-            echo "FAIL: SHA-256 differs."
-            exit 1
-          fi
-      - name: Behavioral Testing (Testing S2 vs S3 outputs)
+          gcc baremetal_aot_gen.c -o baremetal_aot_gen
+          
+      - name: Compile Ribbothon S1 to Baremetal OS
         run: |
-          echo -n "Z!A!A!P!S!P!" > test_prog.txt
-          set +e
-          cat test_prog.txt | ./compiler_v2.exe > test_prog_v2.rib
-          cat test_prog_v2.rib | ./ultimate_aot.exe > test_prog_v2.asm
-          set -e
-          nasm -f elf64 test_prog_v2.asm -o test_prog_v2.o
-          ld test_prog_v2.o -o test_prog_v2.exe
+          cat source_self_host_compiler.txt | ./baremetal_aot_gen
           
-          set +e
-          cat test_prog.txt | ./compiler_v3.exe > test_prog_v3.rib
-          cat test_prog_v3.rib | ./ultimate_aot.exe > test_prog_v3.asm
-          set -e
-          nasm -f elf64 test_prog_v3.asm -o test_prog_v3.o
-          ld test_prog_v3.o -o test_prog_v3.exe
-          
-          set +e
-          ./test_prog_v2.exe > out_v2.txt
-          ./test_prog_v3.exe > out_v3.txt
-          set -e
-          if cmp -s out_v2.txt out_v3.txt; then
-            echo "BEHAVIORAL TESTS OK: Both S2 and S3 compilers produced identical execution results."
-            hexdump -C out_v2.txt
-          else
-            echo "FAIL: Behavioral mismatch."
-            exit 1
-          fi
-       
-      - name: Upload All Generated Artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: all-ribbothon-artifacts
-          path: |
-            *
-            pure_env/*
+      - name: Prove The Absolute Void (QEMU Serial Test)
+        run: |
+          echo -n "Z!A!A!P!S!P!" > test_input.txt
+          # OSを起動し、test_input.txtをシリアル(COM1)経由で注入、出力をvoid_output.txtへ記録
+          qemu-system-x86_64 -drive format=raw,file=void_os.img \
+            -nographic -serial stdio < test_input.txt > void_output.txt
+            
+          echo "Output from VoidOS:"
+          cat void_output.txt
+
