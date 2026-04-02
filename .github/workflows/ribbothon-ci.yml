@@ -160,7 +160,7 @@ jobs:
 
       - name: Mutation Testing (Source Corruption Catch)
         run: |
-          sed 's/A $O 71 x/A $O 72 x/' pure_s1_meta.txt > mutated_meta.txt
+          sed 's/A $O 67 x/A $O 68 x/' pure_s1_meta.txt > mutated_meta.txt
           ./meta_compiler < mutated_meta.txt > mutated.rib
           ./baremetal_aot_gen < mutated.rib
           mv void_os.img mutated_os.img
