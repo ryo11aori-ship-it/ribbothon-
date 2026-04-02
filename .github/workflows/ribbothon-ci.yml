@@ -21,10 +21,12 @@ jobs:
           gcc baremetal_aot_gen.c -o baremetal_aot_gen
       - name: Compile Ribbothon S1 to Baremetal OS
         run: |
-          sed -i '1s/^/A $MAIN_LOOP 1 x\n/' source_self_host_compiler.txt
+          echo "A \$MAIN_LOOP 1 x" > prepend.txt
+          cat source_self_host_compiler.txt >> prepend.txt
+          mv prepend.txt source_self_host_compiler.txt
           ./meta_compiler < source_self_host_compiler.txt > s1.rib
           ./baremetal_aot_gen < s1.rib
-          
+
       - name: Prove The Absolute Void (QEMU Serial Test)
         run: |
           cat << 'EOF' > feed.py
