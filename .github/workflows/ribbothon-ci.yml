@@ -117,3 +117,53 @@ jobs:
           hexdump -C mutated_out.bin
           if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
 
+      - name: Prove Semantic Stability (Fixed-Point Hash Verification)
+        run: |
+          echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
+          
+          # 1. Cインタプリタによるコンパイル (Seed / 第0世代)
+          ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
+          
+          # 2. ベアメタルOS (Gen 1) によるコンパイル
+          cat << 'EOF' > feed_self.py
+          import sys, time
+          time.sleep(2)
+          data = open("pure_s1.rib", "rb").read()
+          for c in data:
+              sys.stdout.buffer.write(bytes([c]))
+              sys.stdout.buffer.flush()
+              time.sleep(0.01)
+          sys.stdout.buffer.write(b"\xff")
+          sys.stdout.buffer.flush()
+          time.sleep(10)
+          EOF
+          python3 feed_self.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          
+          # 第1世代OSが吐き出したバイナリ(compiler2.bin)をOS化し、第2世代OS(Gen 2)を構築
+          cat << 'EOF' > make_os.py
+          boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
+          boot += bytearray(510 - len(boot)) + bytearray([0x55, 0xAA])
+          boot += bytearray([0xB8,0x00,0x20,0x8E,0xD8,0x8E,0xC0,0xB9,0x00,0x80,0x31,0xC0,0xBF,0x00,0x00,0xF3,0xAB,0xBF,0x00,0x00,0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE])
+          payload = open("compiler2.bin", "rb").read()
+          final_img = boot + payload + bytearray([0xFA, 0xF4, 0xEB, 0xFD])
+          final_img += bytearray(63 * 512 - len(final_img))
+          open("void_os2.img", "wb").write(final_img)
+          EOF
+          python3 make_os.py
+          
+          # 3. 第2世代OS (Gen 2) によるコンパイル
+          python3 feed_self.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          
+          # ハッシュの計算と検証
+          SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
+          COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
+          COMPILER2_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
+          
+          echo "Seed (C-origin):   $SEED_HASH"
+          echo "Compiler (Gen 1):  $COMPILER1_HASH"
+          echo "Compiler2 (Gen 2): $COMPILER2_HASH"
+          
+          if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
+          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ]; then echo "❌ FIXED POINT MISMATCH" && exit 1; fi
+          echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
+
