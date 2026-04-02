@@ -21,16 +21,25 @@ jobs:
           gcc baremetal_aot_gen.c -o baremetal_aot_gen
       - name: Compile Ribbothon S1 to Baremetal OS
         run: |
-          echo "A \$MAIN_LOOP 1 x" > prepend.txt
-          cat source_self_host_compiler.txt >> prepend.txt
-          mv prepend.txt source_self_host_compiler.txt
-          
           cat << 'EOF' > patch_s1.py
-          lines = open("source_self_host_compiler.txt").read().splitlines()
-          for i in range(len(lines)):
-              if lines[i].strip() == "E x" and lines[i-1].strip() == "F $CMP 0 x":
-                  lines[i] = "Z $MAIN_LOOP x"
-          open("source_self_host_compiler.txt", "w").write("\n".join(lines) + "\n")
+          import re
+          with open("source_self_host_compiler.txt", "r") as f:
+              text = f.read()
+
+          # 1. 起動時にMAIN_LOOPフラグを1にする
+          text = "A $MAIN_LOOP 1 x\n" + text
+          
+          # 2. EOF時のループ脱出を正しいフラグ操作(Z $MAIN_LOOP)に修正
+          text = re.sub(r"F \$CMP 0 x\s*E x\s*U x", "F $CMP 0 x\nZ $MAIN_LOOP x\nU x\n", text)
+          
+          # 3. 【最大のバグ修正】 コピー命令の引数逆転 (C $CMP <var> -> C <var> $CMP) を全置換
+          text = re.sub(r"C \$CMP (\$[_A-Z]+) x", r"C \1 $CMP x", text)
+          
+          # 4. 各ターンの開始時に $OUT_CHAR をリセットする安全装置を追加
+          text = re.sub(r"W \$MAIN_LOOP x\s*", "W $MAIN_LOOP x\nZ $OUT_CHAR x\n", text)
+          
+          with open("source_self_host_compiler.txt", "w") as f:
+              f.write(text)
           EOF
           python3 patch_s1.py
           
