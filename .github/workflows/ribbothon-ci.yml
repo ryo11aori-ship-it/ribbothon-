@@ -22,35 +22,87 @@ jobs:
       - name: Generate Pure S1 (The Native Ribbothon Compiler)
         run: |
           cat << 'EOF' > build_pure_s1.py
-          code = []
-          code.append("A $MAIN_LOOP 1 x")
-          code.append("W $MAIN_LOOP x")
-          code.append("Z $CHAR x I $CHAR x")
+          import sys
+          code = bytearray()
+          def emit(*args): code.extend(args)
           
-          # EOF (0xFF) チェック -> ループ脱出
-          code.append("C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x")
+          # インタプリタの初期化 (siをソースコードの開始位置に設定)
+          emit(0xBE, 0x00, 0x00) # mov si, 0x0000 (後で正しいサイズにパッチ)
+          emit(0xBB, 0x00, 0x80) # mov bx, 0x8000 (メモリテープ)
+          loop_start = len(code)
+          emit(0xAC)             # lodsb
+          emit(0x3C, 0xFF)       # cmp al, 0xFF
+          emit(0x0F, 0x84, 0x00, 0x00) # je halt (後でパッチ)
+          halt_fixup = len(code)
           
-          # 命令 '1' -> 機械語 0x47 (71)
-          code.append("C $CHAR $CMP x F $CMP 49 x Z $O x A $O 71 x P $O x U x")
+          def emit_char(c, *inst):
+              emit(0x3C, ord(c))
+              emit(0x75, len(inst))
+              emit(*inst)
+              
+          emit_char('1', 0x43)
+          emit_char('2', 0x4B)
+          emit_char('3', 0xFE, 0x07)
+          emit_char('4', 0xFE, 0x0F)
+          emit_char('9', 0x80, 0x07, 0x03)
+          emit_char('a', 0x80, 0x2F, 0x03)
+          emit_char('5', 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE)
+          emit_char('6', 0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xFA, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07)
           
-          # 命令 '2' -> 機械語 0x4F (79)
-          code.append("C $CHAR $CMP x F $CMP 50 x Z $O x A $O 79 x P $O x U x")
+          # ループ開始 '7' (実行時動的スキャン)
+          emit(0x3C, ord('7'))
+          emit(0x75, 18)
+          emit(0x80, 0x3F, 0x00)
+          emit(0x75, 13)
+          emit(0xB9, 0x01, 0x00)
+          sf = len(code)
+          emit(0xAC, 0x3C, ord('7'), 0x75, 0x01, 0x41, 0x3C, ord('8'), 0x75, 0x01, 0x49, 0x85, 0xC9)
+          emit(0x75, (sf - (len(code) + 2)) & 0xFF)
           
-          # 命令 '3' -> 機械語 0xFE 0x05 (254, 5)
-          code.append("C $CHAR $CMP x F $CMP 51 x Z $O x A $O 254 x P $O x Z $O x A $O 5 x P $O x U x")
+          # ループ終了 '8' (実行時動的スキャン)
+          emit(0x3C, ord('8'))
+          emit(0x75, 23)
+          emit(0x80, 0x3F, 0x00)
+          emit(0x74, 18)
+          emit(0xB9, 0x01, 0x00)
+          emit(0x83, 0xEE, 0x02)
+          sb = len(code)
+          emit(0x8A, 0x04, 0x4E, 0x3C, ord('8'), 0x75, 0x01, 0x41, 0x3C, ord('7'), 0x75, 0x01, 0x49, 0x85, 0xC9)
+          emit(0x75, (sb - (len(code) + 2)) & 0xFF)
+          emit(0x83, 0xC6, 0x02)
           
-          # 命令 '4' -> 機械語 0xFE 0x0D (254, 13)
-          code.append("C $CHAR $CMP x F $CMP 52 x Z $O x A $O 254 x P $O x Z $O x A $O 13 x P $O x U x")
+          off = loop_start - (len(code) + 3)
+          emit(0xE9, off & 0xFF, (off >> 8) & 0xFF)
           
-          # ループ終端
-          code.append("E x")
+          halt_addr = len(code)
+          code[halt_fixup-2] = (halt_addr - halt_fixup) & 0xFF
+          code[halt_fixup-1] = ((halt_addr - halt_fixup) >> 8) & 0xFF
+          emit(0xFA, 0xF4, 0xEB, 0xFD)
           
-          with open("pure_s1_meta.txt", "w") as f:
-              f.write("\n".join(code) + "\n")
+          # メモリロード位置(0x7E00)に基づくソース開始アドレスのパッチ
+          src_addr = 0x7E00 + len(code)
+          code[1] = src_addr & 0xFF
+          code[2] = (src_addr >> 8) & 0xFF
+          
+          # ----------------------------------------------------
+          # ここからQuineとしてのRibbothonメタ構文を生成
+          # ----------------------------------------------------
+          out = ["A $MAIN_LOOP 1 x"]
+          
+          # 1. 130バイトのインタプリタ機械語を出力
+          for b in code: 
+              out.append(f"Z $O x A $O {b} x P $O x")
+              
+          # 2. 読み込んだ自分自身のソースコードをそのまま出力
+          out.append("W $MAIN_LOOP x")
+          out.append("Z $CHAR x I $CHAR x")
+          out.append("C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x")
+          out.append("C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x")
+          out.append("E x")
+          
+          open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
           EOF
           python3 build_pure_s1.py
-          
-          # メタコンパイラで純粋S1をRibbothonコード化し、ベアメタルOSへ焼き込む
           ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
           ./baremetal_aot_gen < pure_s1.rib
 
