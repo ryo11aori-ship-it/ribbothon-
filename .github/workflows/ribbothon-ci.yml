@@ -24,23 +24,35 @@ jobs:
           echo "A \$MAIN_LOOP 1 x" > prepend.txt
           cat source_self_host_compiler.txt >> prepend.txt
           mv prepend.txt source_self_host_compiler.txt
+          
+          cat << 'EOF' > patch_s1.py
+          lines = open("source_self_host_compiler.txt").read().splitlines()
+          for i in range(len(lines)):
+              if lines[i].strip() == "E x" and lines[i-1].strip() == "F $CMP 0 x":
+                  lines[i] = "Z $MAIN_LOOP x"
+          open("source_self_host_compiler.txt", "w").write("\n".join(lines) + "\n")
+          EOF
+          python3 patch_s1.py
+          
           ./meta_compiler < source_self_host_compiler.txt > s1.rib
           ./baremetal_aot_gen < s1.rib
 
-      - name: Prove The Absolute Void (Direct OS Execution)
+      - name: Prove The Absolute Void (Strict Self-Hosting S1)
         run: |
-          cat << 'EOF' > hello.txt
-          Z $O x
-          A $O 86 x P $O x Z $O x
-          A $O 79 x P $O x Z $O x
-          A $O 73 x P $O x Z $O x
-          A $O 68 x P $O x Z $O x
-          A $O 32 x P $O x Z $O x
-          A $O 79 x P $O x Z $O x
-          A $O 75 x P $O x Z $O x
+          cat << 'EOF' > feed.py
+          import sys, time
+          time.sleep(2)
+          for c in b"+++++":
+              sys.stdout.buffer.write(bytes([c]))
+              sys.stdout.buffer.flush()
+              time.sleep(0.1)
+          sys.stdout.buffer.write(b"\xff")
+          sys.stdout.buffer.flush()
+          time.sleep(10)
           EOF
-          ./meta_compiler < hello.txt > hello.rib
-          ./baremetal_aot_gen < hello.rib
-          timeout 5 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
+          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
           echo "Output from VoidOS:"
           cat void_output.txt
+          echo ""
+          echo "Hexdump of Output:"
+          hexdump -C void_output.txt
