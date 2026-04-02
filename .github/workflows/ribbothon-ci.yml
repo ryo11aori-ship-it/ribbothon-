@@ -26,6 +26,6 @@ jobs:
       - name: Prove The Absolute Void (QEMU Serial Test)
         run: |
           echo -n "Z!A!A!P!S!P!" > test_input.txt
-          timeout 10 qemu-system-x86_64 -drive format=raw,file=void_os.img -nographic -serial stdio < test_input.txt > void_output.txt || true
+          timeout 10 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio < test_input.txt > void_output.txt || true
           echo "Output from VoidOS:"
           cat void_output.txt
