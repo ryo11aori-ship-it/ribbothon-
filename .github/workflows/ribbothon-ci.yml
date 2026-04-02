@@ -120,11 +120,8 @@ jobs:
       - name: Prove Semantic Stability (Fixed-Point Hash Verification)
         run: |
           echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
-          
-          # 1. Cインタプリタによるコンパイル (Seed / 第0世代)
+          ./baremetal_aot_gen < pure_s1.rib
           ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
-          
-          # 2. ベアメタルOS (Gen 1) によるコンパイル
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
@@ -138,8 +135,6 @@ jobs:
           time.sleep(10)
           EOF
           python3 feed_self.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
-          
-          # 第1世代OSが吐き出したバイナリ(compiler2.bin)をOS化し、第2世代OS(Gen 2)を構築
           cat << 'EOF' > make_os.py
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
           boot += bytearray(510 - len(boot)) + bytearray([0x55, 0xAA])
@@ -150,20 +145,13 @@ jobs:
           open("void_os2.img", "wb").write(final_img)
           EOF
           python3 make_os.py
-          
-          # 3. 第2世代OS (Gen 2) によるコンパイル
           python3 feed_self.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
-          
-          # ハッシュの計算と検証
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
           COMPILER2_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
-          
           echo "Seed (C-origin):   $SEED_HASH"
           echo "Compiler (Gen 1):  $COMPILER1_HASH"
           echo "Compiler2 (Gen 2): $COMPILER2_HASH"
-          
           if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
           if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ]; then echo "❌ FIXED POINT MISMATCH" && exit 1; fi
           echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
-
