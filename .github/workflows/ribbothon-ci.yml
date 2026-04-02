@@ -158,6 +158,7 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
           
+          # 究極の修正: UART FIFOの決壊を防ぐため、インタプリタの処理速度に合わせた30msのハードウェア同期を適用
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
@@ -165,13 +166,13 @@ jobs:
           for c in d:
               sys.stdout.buffer.write(bytes([c]))
               sys.stdout.buffer.flush()
-              time.sleep(0.003)
+              time.sleep(0.03)
           sys.stdout.buffer.write(b"\xff")
           sys.stdout.buffer.flush()
           time.sleep(10)
           EOF
           
-          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
           
           cat << 'EOF' > make_os.py
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
@@ -184,7 +185,7 @@ jobs:
           EOF
           python3 make_os.py
           
-          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
           
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
