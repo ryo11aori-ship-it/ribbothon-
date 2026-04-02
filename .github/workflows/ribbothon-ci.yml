@@ -1,5 +1,5 @@
 name: Ribbothon CI (Strict Self-Hosting)
-on: [push, pull_request]
+on: [push,pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,10 +13,6 @@ jobs:
         run: |
           gcc -O3 ribbothon.c -o ribbothon -lm
           gcc -O3 meta_compiler9.c -o meta_compiler
-      - name: Generate Shared Stage 1 Source
-        run: |
-          # source_self_host_compiler.txt などを生成するスクリプトを実行
-          python3 generate_self_host.py
       - name: Setup Void Hardware Environment
         run: |
           sudo apt-get install -y qemu-system-x86
@@ -25,15 +21,11 @@ jobs:
           gcc baremetal_aot_gen.c -o baremetal_aot_gen
       - name: Compile Ribbothon S1 to Baremetal OS
         run: |
-          # 1. メタ構文をRibbothonコード(.rib)にコンパイル
           ./meta_compiler < source_self_host_compiler.txt > s1.rib
-          # 2. RibbothonコードをベアメタルOSジェネレータに流し込み、void_os.imgを生成
           ./baremetal_aot_gen < s1.rib
       - name: Prove The Absolute Void (QEMU Serial Test)
         run: |
           echo -n "Z!A!A!P!S!P!" > test_input.txt
-          # OSを起動し、シリアル(COM1)経由で入力を注入
-          # hltで止まるため timeout 10 を設定し、CIのハングアップを防ぐ (|| true でエラー回避)
           timeout 10 qemu-system-x86_64 -drive format=raw,file=void_os.img -nographic -serial stdio < test_input.txt > void_output.txt || true
           echo "Output from VoidOS:"
           cat void_output.txt
