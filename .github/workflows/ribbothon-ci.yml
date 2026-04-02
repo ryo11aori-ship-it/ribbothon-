@@ -25,6 +25,6 @@ jobs:
           ./baremetal_aot_gen < s1.rib
       - name: Prove The Absolute Void (QEMU Serial Test)
         run: |
-          (sleep 2; printf "+++++\xff") | timeout 10 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
+          (sleep 2; for i in 1 2 3 4 5; do printf "+"; sleep 0.1; done; printf "\xff"; sleep 10) | timeout 10 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
           echo "Output from VoidOS:"
           cat void_output.txt
