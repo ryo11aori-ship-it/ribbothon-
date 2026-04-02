@@ -172,37 +172,30 @@ jobs:
         run: |
           echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
           
+          # [Gen 1] C言語版AOTジェネレータで最初のOSを作成
           ./baremetal_aot_gen < pure_s1.rib
           mv void_os.img void_os1.img
           
-          # 小細工なし。全データを確実に送り切り、QEMUの終了を待つだけの完全な一直線スクリプト
+          # 確実にデータを送り、0xFFを書き込んで終了を待つPythonスクリプト
           cat << 'EOF' > feed_self.py
           import sys, time, subprocess, threading
-          
           img = sys.argv[1]
           qemu = subprocess.Popen(
               ["qemu-system-x86_64", "-drive", f"format=raw,file={img}", "-display", "none", "-serial", "stdio"],
-              stdin=subprocess.PIPE,
-              stdout=subprocess.PIPE,
-              stderr=subprocess.DEVNULL
+              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
           )
-          
           output = bytearray()
           def read_output():
               while True:
                   c = qemu.stdout.read(1)
-                  if not c:
-                      break
+                  if not c: break
                   output.extend(c)
-          
           t = threading.Thread(target=read_output)
           t.daemon = True
           t.start()
-          
           time.sleep(2)
           with open("pure_s1.rib", "rb") as f:
               d = f.read()
-          
           for c in d:
               try:
                   qemu.stdin.write(bytes([c]))
@@ -210,30 +203,40 @@ jobs:
                   time.sleep(0.005)
               except BrokenPipeError:
                   break
-          
           try:
               qemu.stdin.write(b"\xff")
               qemu.stdin.flush()
           except BrokenPipeError:
               pass
-          
           time.sleep(10)
           qemu.terminate()
           qemu.wait()
-          
           sys.stdout.buffer.write(output)
           EOF
           
+          # バイナリペイロードを確実に起動可能な10MBのOSイメージに変換するスクリプト
+          cat << 'EOF' > make_os.py
+          import sys
+          boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
+          boot += bytearray(510 - len(boot)) + bytearray([0x55, 0xAA])
+          boot += bytearray([0xB8,0x00,0x20,0x8E,0xD8,0x8E,0xC0,0xB9,0x00,0x80,0x31,0xC0,0xBF,0x00,0x00,0xF3,0xAB,0xBF,0x00,0x00,0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE])
+          payload = open(sys.argv[1], "rb").read()
+          final_img = boot + payload + bytearray([0xFA, 0xF4, 0xEB, 0xFD])
+          final_img += bytearray(10 * 1024 * 1024 - len(final_img))
+          open(sys.argv[2], "wb").write(final_img)
+          EOF
+          
+          # 世代交代の実行（※絶対に baremetal_aot_gen にバイナリを通さない）
+          
+          # Gen 1 の実行 -> compiler1.bin (バイナリペイロード)
           python3 feed_self.py void_os1.img > compiler1.bin
           
-          ./baremetal_aot_gen < compiler1.bin
-          mv void_os.img void_os2.img
-          
+          # Gen 2 OS の作成と実行 -> compiler2.bin
+          python3 make_os.py compiler1.bin void_os2.img
           python3 feed_self.py void_os2.img > compiler2.bin
           
-          ./baremetal_aot_gen < compiler2.bin
-          mv void_os.img void_os3.img
-          
+          # Gen 3 OS の作成と実行 -> compiler3.bin
+          python3 make_os.py compiler2.bin void_os3.img
           python3 feed_self.py void_os3.img > compiler3.bin
           
           SEED_HASH=$(sha256sum pure_s1.rib | awk '{print $1}')
