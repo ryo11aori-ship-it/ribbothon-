@@ -50,10 +50,18 @@ jobs:
           a.jcc8(0x74, "halt")
           def cmd(c, b):
               a.emit(0x3C, ord(c)); a.jcc8(0x75, f"s_{c}"); a.emit(*b); a.label(f"s_{c}")
-          cmd('1', [0x43]); cmd('2', [0x4B]); cmd('3', [0xFE, 0x07]); cmd('4', [0xFE, 0x0F])
-          cmd('9', [0x80, 0x07, 0x03]); cmd('a', [0x80, 0x2F, 0x03])
-          cmd('5', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
-          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07])
+              
+          # --- ここが全ての元凶だった。脳の配線を正しく修正 ---
+          cmd('1', [0xFE, 0x07]) # + (INC byte [bx])
+          cmd('2', [0xFE, 0x0F]) # - (DEC byte [bx])
+          cmd('3', [0x43])       # > (INC bx)
+          cmd('4', [0x4B])       # < (DEC bx)
+          cmd('5', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07]) # , (Input)
+          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE]) # . (Output)
+          # --------------------------------------------------
+          
+          cmd('9', [0x80, 0x07, 0x03])
+          cmd('a', [0x80, 0x2F, 0x03])
           a.emit(0x3C, ord('7')); a.jcc8(0x75, "s7")
           a.emit(0x80, 0x3F, 0x00); a.jcc8(0x75, "s7")
           a.emit(0xB9, 0x01, 0x00)
@@ -86,6 +94,7 @@ jobs:
                   out.append(f"Z $O x S $O {256 - b} x P $O x")
                   
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
+          
           open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
           EOF
           python3 build_pure_s1.py
@@ -164,16 +173,16 @@ jobs:
           import sys, time
           time.sleep(2)
           d = open("pure_s1.rib", "rb").read()
-          for c in d:
-              sys.stdout.buffer.write(bytes([c]))
+          for i in range(0, len(d), 16):
+              sys.stdout.buffer.write(d[i:i+16])
               sys.stdout.buffer.flush()
               time.sleep(0.005)
           sys.stdout.buffer.write(b"\xff")
           sys.stdout.buffer.flush()
-          time.sleep(10)
+          time.sleep(5)
           EOF
           
-          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
           
           cat << 'EOF' > make_os.py
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
@@ -186,7 +195,7 @@ jobs:
           EOF
           python3 make_os.py
           
-          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
           
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
@@ -199,17 +208,8 @@ jobs:
           if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ]; then
               echo "❌ FIXED POINT MISMATCH"
               echo "=== FATAL DIAGNOSTICS ==="
-              echo "[File Sizes]"
               ls -l compiler*.bin
-              echo ""
-              echo "[First 20 Divergent Bytes]"
               cmp -l compiler2.bin compiler3.bin | head -n 20 || true
-              echo ""
-              echo "[Tail Hexdump of Gen 1 (compiler2.bin)]"
-              hexdump -C compiler2.bin | tail -n 10
-              echo ""
-              echo "[Tail Hexdump of Gen 2 (compiler3.bin)]"
-              hexdump -C compiler3.bin | tail -n 10
               exit 1
           fi
           if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
