@@ -42,7 +42,9 @@ jobs:
                           self.code[pos+1] = (off >> 8) & 0xFF
                   return self.code
           a = Asm()
-          a.emit(0x31, 0xC0, 0x8E, 0xC0, 0x8E, 0xD8)
+          
+          # 究極の修正: CLD (0xFC) を追加し、Direction Flagのランダム性を排除して確実にテープをゼロクリアする
+          a.emit(0xFC, 0x31, 0xC0, 0x8E, 0xC0, 0x8E, 0xD8)
           a.emit(0xBF, 0x00, 0x10, 0xB9, 0x00, 0x10, 0xF3, 0xAB)
           a.emit(0xBE, 0x00, 0x00, 0xBB, 0x00, 0x10)
           a.label("loop")
@@ -60,7 +62,6 @@ jobs:
           cmd('9', [0x80, 0x07, 0x03])
           cmd('a', [0x80, 0x2F, 0x03])
           
-          # 7 (前進)
           a.emit(0x3C, ord('7')); a.jcc8(0x75, "s7")
           a.emit(0x80, 0x3F, 0x00); a.jcc8(0x75, "s7")
           a.emit(0xB9, 0x01, 0x00)
@@ -70,18 +71,17 @@ jobs:
           a.emit(0x85, 0xC9); a.jcc8(0x75, "fwd")
           a.label("s7")
           
-          # 8 (後退: バグ修正済 - 自身の8をカウントしないようにポインタを正しく調整)
           a.emit(0x3C, ord('8')); a.jcc8(0x75, "s8")
           a.emit(0x80, 0x3F, 0x00); a.jcc8(0x74, "s8")
           a.emit(0xB9, 0x01, 0x00)
-          a.emit(0x4E) # dec si (自分自身の'8'に戻る)
+          a.emit(0x4E) 
           a.label("bwd")
-          a.emit(0x4E) # dec si (1文字前へ)
-          a.emit(0x8A, 0x04) # mov al, [si]
+          a.emit(0x4E)
+          a.emit(0x8A, 0x04)
           a.emit(0x3C, ord('8')); a.jcc8(0x75, "nb8"); a.emit(0x41); a.label("nb8")
           a.emit(0x3C, ord('7')); a.jcc8(0x75, "nb7"); a.emit(0x49); a.label("nb7")
           a.emit(0x85, 0xC9); a.jcc8(0x75, "bwd")
-          a.emit(0x46) # inc si (対応する'7'の次の文字へ)
+          a.emit(0x46)
           a.label("s8")
           
           a.jmp16("loop")
@@ -89,7 +89,8 @@ jobs:
           
           c = a.resolve()
           addr = 0x7E00 + 50 + len(c)
-          c[15], c[16] = addr & 0xFF, (addr >> 8) & 0xFF
+          # 1バイト追加されたため、パッチ位置を c[16], c[17] にシフト
+          c[16], c[17] = addr & 0xFF, (addr >> 8) & 0xFF
           
           out = ["A $MAIN_LOOP 1 x"]
           for b in c:
@@ -178,16 +179,16 @@ jobs:
           import sys, time
           time.sleep(2)
           d = open("pure_s1.rib", "rb").read()
-          for i in range(0, len(d), 16):
-              sys.stdout.buffer.write(d[i:i+16])
+          for c in d:
+              sys.stdout.buffer.write(bytes([c]))
               sys.stdout.buffer.flush()
               time.sleep(0.005)
           sys.stdout.buffer.write(b"\xff")
           sys.stdout.buffer.flush()
-          time.sleep(5)
+          time.sleep(10)
           EOF
           
-          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
           
           cat << 'EOF' > make_os.py
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
@@ -200,7 +201,7 @@ jobs:
           EOF
           python3 make_os.py
           
-          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
           
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
