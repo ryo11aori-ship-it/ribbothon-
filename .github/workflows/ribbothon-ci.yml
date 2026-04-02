@@ -79,9 +79,12 @@ jobs:
           c[15], c[16] = addr & 0xFF, (addr >> 8) & 0xFF
           
           out = ["A $MAIN_LOOP 1 x"]
-          for b in c: out.append(f"Z $O x A $O {b} x P $O x")
-          
-          # 究極の修正: EOFを受け取った際に自ら P $CHAR x で 0xFF を出力し、安全にインタプリタを停止させる
+          for b in c:
+              if b <= 128:
+                  out.append(f"Z $O x A $O {b} x P $O x")
+              else:
+                  out.append(f"Z $O x S $O {256 - b} x P $O x")
+                  
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
           
           open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
@@ -158,21 +161,21 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
           
-          # 究極の修正: UART FIFOの決壊を防ぐため、インタプリタの処理速度に合わせた30msのハードウェア同期を適用
+          # 究極の修正: 16バイトごとの高速バースト転送を復活させ、タイムアウトを回避
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
           d = open("pure_s1.rib", "rb").read()
-          for c in d:
-              sys.stdout.buffer.write(bytes([c]))
+          for i in range(0, len(d), 16):
+              sys.stdout.buffer.write(d[i:i+16])
               sys.stdout.buffer.flush()
-              time.sleep(0.03)
+              time.sleep(0.005)
           sys.stdout.buffer.write(b"\xff")
           sys.stdout.buffer.flush()
-          time.sleep(10)
+          time.sleep(5)
           EOF
           
-          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
           
           cat << 'EOF' > make_os.py
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
@@ -185,7 +188,7 @@ jobs:
           EOF
           python3 make_os.py
           
-          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
           
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
