@@ -31,8 +31,11 @@ if(c=='9')E3(0x80,0x05,0x03);
 if(c=='a')E3(0x80,0x2D,0x03);
 }
 E2(0xFA,0xF4);E2(0xEB,0xFD);
-int total_sectors=(pos+511)/512;
-int final_size=total_sectors*512;
+
+/* 仮想ディスク容量の罠を回避するため、必ず63セクタ(32KB)以上にパディングする */
+int target_size = 63 * 512;
+int final_size = (pos > target_size) ? ((pos + 511) / 512) * 512 : target_size;
+
 FILE *out=fopen("void_os.img","wb");
 fwrite(img,1,final_size,out);
 fclose(out);
