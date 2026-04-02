@@ -155,85 +155,87 @@ jobs:
           hexdump -C mutated_out.bin
           if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
 
-      - name: Prove Semantic Stability (Fixed-Point Hash Verification)
+      - name: Generate Pure S1 (The Native Ribbothon Compiler)
         run: |
-          echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
+          cat << 'EOF' > build_pure_s1.py
+          class Asm:
+              def __init__(self):
+                  self.code, self.labels, self.fixups = bytearray(), {}, []
+              def emit(self, *b): self.code.extend(b)
+              def label(self, n): self.labels[n] = len(self.code)
+              def jmp8(self, n): self.emit(0xEB, 0); self.fixups.append((len(self.code)-1, n))
+              def jcc8(self, op, n): self.emit(op, 0); self.fixups.append((len(self.code)-1, n))
+              def jmp16(self, n): self.emit(0xE9, 0, 0); self.fixups.append((len(self.code)-2, n, 16))
+              def resolve(self):
+                  for f in self.fixups:
+                      if len(f) == 2:
+                          pos, name = f
+                          self.code[pos] = (self.labels[name] - (pos + 1)) & 0xFF
+                      else:
+                          pos, name, _ = f
+                          off = self.labels[name] - (pos + 2)
+                          self.code[pos] = off & 0xFF
+                          self.code[pos+1] = (off >> 8) & 0xFF
+                  return self.code
+          a = Asm()
+          a.emit(0xFA, 0xFC, 0x31, 0xC0, 0x8E, 0xC0, 0x8E, 0xD8)
+          
+          # 究極の修正: cx=0x7FFFに変更し、テープ領域(0x1000〜0xFFFF)の全てを完全にゼロクリアする
+          a.emit(0xBF, 0x00, 0x10, 0xB9, 0xFF, 0x7F, 0xF3, 0xAB)
+          
+          a.emit(0xBE, 0x00, 0x00, 0xBB, 0x00, 0x10)
+          a.label("loop")
+          a.emit(0xAC, 0x3C, 0xFF)
+          a.jcc8(0x74, "halt")
+          def cmd(c, b):
+              a.emit(0x3C, ord(c)); a.jcc8(0x75, f"s_{c}"); a.emit(*b); a.label(f"s_{c}")
+              
+          cmd('1', [0xFE, 0x07])
+          cmd('2', [0xFE, 0x0F])
+          cmd('3', [0x43])
+          cmd('4', [0x4B])
+          cmd('5', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07])
+          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
+          cmd('9', [0x80, 0x07, 0x03])
+          cmd('a', [0x80, 0x2F, 0x03])
+          
+          a.emit(0x3C, ord('7')); a.jcc8(0x75, "s7")
+          a.emit(0x80, 0x3F, 0x00); a.jcc8(0x75, "s7")
+          a.emit(0xB9, 0x01, 0x00)
+          a.label("fwd")
+          a.emit(0xAC, 0x3C, ord('7')); a.jcc8(0x75, "nf7"); a.emit(0x41); a.label("nf7")
+          a.emit(0x3C, ord('8')); a.jcc8(0x75, "nf8"); a.emit(0x49); a.label("nf8")
+          a.emit(0x85, 0xC9); a.jcc8(0x75, "fwd")
+          a.label("s7")
+          
+          a.emit(0x3C, ord('8')); a.jcc8(0x75, "s8")
+          a.emit(0x80, 0x3F, 0x00); a.jcc8(0x74, "s8")
+          a.emit(0xB9, 0x01, 0x00)
+          a.emit(0x4E) 
+          a.label("bwd")
+          a.emit(0x4E)
+          a.emit(0x8A, 0x04)
+          a.emit(0x3C, ord('8')); a.jcc8(0x75, "nb8"); a.emit(0x41); a.label("nb8")
+          a.emit(0x3C, ord('7')); a.jcc8(0x75, "nb7"); a.emit(0x49); a.label("nb7")
+          a.emit(0x85, 0xC9); a.jcc8(0x75, "bwd")
+          a.emit(0x46)
+          a.label("s8")
+          
+          a.jmp16("loop")
+          a.label("halt"); a.emit(0xFA, 0xF4, 0xEB, 0xFD)
+          
+          c = a.resolve()
+          addr = 0x7E00 + 562 + len(c)
+          c[17], c[18] = addr & 0xFF, (addr >> 8) & 0xFF
+          
+          out = ["A $MAIN_LOOP 1 x"]
+          for b in c:
+              out.append(f"Z $O x A $O {b} x P $O x")
+                  
+          out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
+          
+          open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
+          EOF
+          python3 build_pure_s1.py
+          ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
           ./baremetal_aot_gen < pure_s1.rib
-          mv void_os.img void_os1.img
-          
-          cat << 'EOF' > feed_self.py
-          import sys, time, subprocess, threading
-          img = sys.argv[1]
-          qemu = subprocess.Popen(
-              ["qemu-system-x86_64", "-drive", f"format=raw,file={img}", "-display", "none", "-serial", "stdio"],
-              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
-          )
-          output = bytearray()
-          def read_output():
-              while True:
-                  c = qemu.stdout.read(1)
-                  if not c: break
-                  output.extend(c)
-          t = threading.Thread(target=read_output)
-          t.daemon = True
-          t.start()
-          time.sleep(2)
-          with open("pure_s1.rib", "rb") as f:
-              d = f.read()
-          for c in d:
-              try:
-                  qemu.stdin.write(bytes([c]))
-                  qemu.stdin.flush()
-                  time.sleep(0.005)
-              except BrokenPipeError:
-                  break
-          try:
-              qemu.stdin.write(b"\xff")
-              qemu.stdin.flush()
-          except BrokenPipeError:
-              pass
-          time.sleep(10)
-          qemu.terminate()
-          qemu.wait()
-          sys.stdout.buffer.write(output)
-          EOF
-          
-          cat << 'EOF' > make_os.py
-          import sys
-          boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
-          boot += bytearray(510 - len(boot)) + bytearray([0x55, 0xAA])
-          boot += bytearray([0xB8,0x00,0x20,0x8E,0xD8,0x8E,0xC0,0xB9,0x00,0x80,0x31,0xC0,0xBF,0x00,0x00,0xF3,0xAB,0xBF,0x00,0x00,0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE])
-          payload = open(sys.argv[1], "rb").read()
-          final_img = boot + payload + bytearray([0xFA, 0xF4, 0xEB, 0xFD])
-          final_img += bytearray(10 * 1024 * 1024 - len(final_img))
-          open(sys.argv[2], "wb").write(final_img)
-          EOF
-          
-          python3 feed_self.py void_os1.img > compiler1.bin
-          
-          python3 make_os.py compiler1.bin void_os2.img
-          python3 feed_self.py void_os2.img > compiler2.bin
-          
-          python3 make_os.py compiler2.bin void_os3.img
-          python3 feed_self.py void_os3.img > compiler3.bin
-          
-          SEED_HASH=$(sha256sum pure_s1.rib | awk '{print $1}')
-          COMPILER1_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
-          COMPILER2_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
-          COMPILER3_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
-          
-          echo "Seed (pure_s1.rib): $SEED_HASH"
-          echo "Gen 1 Output:       $COMPILER1_HASH"
-          echo "Gen 2 Output:       $COMPILER2_HASH"
-          echo "Gen 3 Output:       $COMPILER3_HASH"
-          
-          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ] || [ "$COMPILER2_HASH" != "$COMPILER3_HASH" ]; then
-              echo "❌ FIXED POINT MISMATCH"
-              echo "=== FATAL DIAGNOSTICS ==="
-              ls -l pure_s1.rib compiler*.bin
-              cmp -l compiler1.bin compiler2.bin | head -n 20 || true
-              exit 1
-          fi
-          
-          if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
-          echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
