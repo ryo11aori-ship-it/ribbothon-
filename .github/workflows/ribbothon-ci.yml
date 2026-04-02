@@ -50,7 +50,6 @@ jobs:
           a.jcc8(0x74, "halt")
           def cmd(c, b):
               a.emit(0x3C, ord(c)); a.jcc8(0x75, f"s_{c}"); a.emit(*b); a.label(f"s_{c}")
-              
           cmd('1', [0xFE, 0x07])
           cmd('2', [0xFE, 0x0F])
           cmd('3', [0x43])
@@ -59,7 +58,6 @@ jobs:
           cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
           cmd('9', [0x80, 0x07, 0x03])
           cmd('a', [0x80, 0x2F, 0x03])
-          
           a.emit(0x3C, ord('7')); a.jcc8(0x75, "s7")
           a.emit(0x80, 0x3F, 0x00); a.jcc8(0x75, "s7")
           a.emit(0xB9, 0x01, 0x00)
@@ -68,7 +66,6 @@ jobs:
           a.emit(0x3C, ord('8')); a.jcc8(0x75, "nf8"); a.emit(0x49); a.label("nf8")
           a.emit(0x85, 0xC9); a.jcc8(0x75, "fwd")
           a.label("s7")
-          
           a.emit(0x3C, ord('8')); a.jcc8(0x75, "s8")
           a.emit(0x80, 0x3F, 0x00); a.jcc8(0x74, "s8")
           a.emit(0xB9, 0x01, 0x00)
@@ -81,26 +78,82 @@ jobs:
           a.emit(0x85, 0xC9); a.jcc8(0x75, "bwd")
           a.emit(0x46)
           a.label("s8")
-          
           a.jmp16("loop")
           a.label("halt"); a.emit(0xFA, 0xF4, 0xEB, 0xFD)
-          
           c = a.resolve()
-          
-          # 【根本解決1】MBR(512B)と初期化コード(50B)の合計562バイトを正確に加算し、ソースコードの物理アドレスを特定する
           addr = 0x7E00 + 562 + len(c)
           c[17], c[18] = addr & 0xFF, (addr >> 8) & 0xFF
-          
           out = ["A $MAIN_LOOP 1 x"]
           for b in c:
               out.append(f"Z $O x A $O {b} x P $O x")
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
-          
           open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
           EOF
           python3 build_pure_s1.py
           ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
           ./baremetal_aot_gen < pure_s1.rib
+
+      - name: Prove The Absolute Void (Pure Native Compilation)
+        run: |
+          cat << 'EOF' > feed.py
+          import sys, time
+          time.sleep(2)
+          for c in b"1234":
+              sys.stdout.buffer.write(bytes([c]))
+              sys.stdout.buffer.flush()
+              time.sleep(0.1)
+          sys.stdout.buffer.write(b"\xff")
+          sys.stdout.buffer.flush()
+          time.sleep(10)
+          EOF
+          python3 feed.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
+          echo "Output from VoidOS:"
+          cat void_output.txt
+          echo ""
+          echo "Hexdump of Output:"
+          hexdump -C void_output.txt
+
+      - name: Prove Determinism (Quad-Crown DDC)
+        run: |
+          sudo apt-get install -y clang tcc
+          gcc -O3 baremetal_aot_gen.c -o gen_gcc
+          clang -O3 baremetal_aot_gen.c -o gen_clang
+          tcc baremetal_aot_gen.c -o gen_tcc
+          ./gen_gcc < pure_s1.rib
+          mv void_os.img os_gcc.img
+          ./gen_clang < pure_s1.rib
+          mv void_os.img os_clang.img
+          ./gen_tcc < pure_s1.rib
+          mv void_os.img os_tcc.img
+          HASH_GCC=$(sha256sum os_gcc.img | awk '{print $1}')
+          HASH_CLANG=$(sha256sum os_clang.img | awk '{print $1}')
+          HASH_TCC=$(sha256sum os_tcc.img | awk '{print $1}')
+          echo "GCC OS Hash:   $HASH_GCC"
+          echo "Clang OS Hash: $HASH_CLANG"
+          echo "TCC OS Hash:   $HASH_TCC"
+          if [ "$HASH_GCC" != "$HASH_CLANG" ] || [ "$HASH_GCC" != "$HASH_TCC" ]; then echo "FAIL: DDC Mismatch!"; exit 1; fi
+          echo "SUCCESS: Absolute compiler determinism proven."
+
+      - name: Dual-Oracle Semantic Validation (Host VM vs Baremetal)
+        run: |
+          printf "1234\xff" > pure_input.bin
+          ./ribbothon pure_s1.rib < pure_input.bin > host_out.bin
+          echo "Host VM (C Interpreter) Hexdump:"
+          hexdump -C host_out.bin
+          echo "Baremetal VM (Native VoidOS) Hexdump:"
+          hexdump -C void_output.txt
+          if cmp -s host_out.bin void_output.txt; then echo "SUCCESS: Dual-Oracle logic perfectly matched across dimensions."; else echo "FAIL: Semantic mismatch between C-VM and Baremetal!"; exit 1; fi
+
+      - name: Mutation Testing (Source Corruption Catch)
+        run: |
+          sed 's/A $O 67 x/A $O 68 x/' pure_s1_meta.txt > mutated_meta.txt
+          ./meta_compiler < mutated_meta.txt > mutated.rib
+          ./baremetal_aot_gen < mutated.rib
+          mv void_os.img mutated_os.img
+          python3 feed.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=mutated_os.img -display none -serial stdio > mutated_out.bin || true
+          echo "Mutated Baremetal VM Hexdump:"
+          hexdump -C mutated_out.bin
+          if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
 
       - name: Prove Semantic Stability (Fixed-Point Hash Verification)
         run: |
@@ -108,15 +161,22 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           mv void_os.img void_os1.img
           
-          # 【根本解決2】QEMUのクラッシュを防ぐため、Pythonのパイプを使わず直接ファイル(-serial file)に書き出させる
           cat << 'EOF' > feed_self.py
-          import sys, time, subprocess
+          import sys, time, subprocess, threading
           img = sys.argv[1]
-          out_file = sys.argv[2]
           qemu = subprocess.Popen(
-              ["qemu-system-x86_64", "-drive", f"format=raw,file={img}", "-display", "none", "-serial", f"file:{out_file}"],
-              stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+              ["qemu-system-x86_64", "-drive", f"format=raw,file={img}", "-display", "none", "-serial", "stdio"],
+              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
           )
+          output = bytearray()
+          def read_output():
+              while True:
+                  c = qemu.stdout.read(1)
+                  if not c: break
+                  output.extend(c)
+          t = threading.Thread(target=read_output)
+          t.daemon = True
+          t.start()
           time.sleep(2)
           with open("pure_s1.rib", "rb") as f:
               d = f.read()
@@ -135,6 +195,7 @@ jobs:
           time.sleep(10)
           qemu.terminate()
           qemu.wait()
+          sys.stdout.buffer.write(output)
           EOF
           
           cat << 'EOF' > make_os.py
@@ -148,24 +209,31 @@ jobs:
           open(sys.argv[2], "wb").write(final_img)
           EOF
           
-          python3 feed_self.py void_os1.img compiler1.bin
+          python3 feed_self.py void_os1.img > compiler1.bin
           
           python3 make_os.py compiler1.bin void_os2.img
-          python3 feed_self.py void_os2.img compiler2.bin
+          python3 feed_self.py void_os2.img > compiler2.bin
           
           python3 make_os.py compiler2.bin void_os3.img
-          python3 feed_self.py void_os3.img compiler3.bin
+          python3 feed_self.py void_os3.img > compiler3.bin
           
           SEED_HASH=$(sha256sum pure_s1.rib | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER2_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
           COMPILER3_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
           
-          echo "Seed: $SEED_HASH"
-          echo "Gen1: $COMPILER1_HASH"
-          echo "Gen2: $COMPILER2_HASH"
-          echo "Gen3: $COMPILER3_HASH"
+          echo "Seed (pure_s1.rib): $SEED_HASH"
+          echo "Gen 1 Output:       $COMPILER1_HASH"
+          echo "Gen 2 Output:       $COMPILER2_HASH"
+          echo "Gen 3 Output:       $COMPILER3_HASH"
           
-          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ] || [ "$COMPILER2_HASH" != "$COMPILER3_HASH" ]; then echo "❌ MISMATCH"; exit 1; fi
-          if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE"; exit 1; fi
+          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ] || [ "$COMPILER2_HASH" != "$COMPILER3_HASH" ]; then
+              echo "❌ FIXED POINT MISMATCH"
+              echo "=== FATAL DIAGNOSTICS ==="
+              ls -l pure_s1.rib compiler*.bin
+              cmp -l compiler1.bin compiler2.bin | head -n 20 || true
+              exit 1
+          fi
+          
+          if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
           echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
