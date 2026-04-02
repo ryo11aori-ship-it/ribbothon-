@@ -160,7 +160,6 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
           
-          # UART決壊を防ぐ究極の1バイト転送（バースト厳禁）
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
@@ -197,6 +196,21 @@ jobs:
           echo "Compiler (Gen 1):  $COMPILER1_HASH"
           echo "Compiler2 (Gen 2): $COMPILER2_HASH"
           
+          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ]; then
+              echo "❌ FIXED POINT MISMATCH"
+              echo "=== FATAL DIAGNOSTICS ==="
+              echo "[File Sizes]"
+              ls -l compiler*.bin
+              echo ""
+              echo "[First 20 Divergent Bytes]"
+              cmp -l compiler2.bin compiler3.bin | head -n 20 || true
+              echo ""
+              echo "[Tail Hexdump of Gen 1 (compiler2.bin)]"
+              hexdump -C compiler2.bin | tail -n 10
+              echo ""
+              echo "[Tail Hexdump of Gen 2 (compiler3.bin)]"
+              hexdump -C compiler3.bin | tail -n 10
+              exit 1
+          fi
           if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
-          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ]; then echo "❌ FIXED POINT MISMATCH" && exit 1; fi
           echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
