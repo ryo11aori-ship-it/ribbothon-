@@ -42,8 +42,6 @@ jobs:
                           self.code[pos+1] = (off >> 8) & 0xFF
                   return self.code
           a = Asm()
-          
-          # 究極の防壁: CLI(0xFA)でタイマー割り込みを完全遮断し、CLD(0xFC)でテープを浄化する
           a.emit(0xFA, 0xFC, 0x31, 0xC0, 0x8E, 0xC0, 0x8E, 0xD8)
           a.emit(0xBF, 0x00, 0x10, 0xB9, 0x00, 0x10, 0xF3, 0xAB)
           a.emit(0xBE, 0x00, 0x00, 0xBB, 0x00, 0x10)
@@ -58,7 +56,8 @@ jobs:
           cmd('3', [0x43])
           cmd('4', [0x4B])
           cmd('5', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07])
-          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
+          # THREチェックを削除し、純粋に送信するだけの安全な出力ルーチンへ変更
+          cmd('6', [0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
           cmd('9', [0x80, 0x07, 0x03])
           cmd('a', [0x80, 0x2F, 0x03])
           
@@ -89,12 +88,14 @@ jobs:
           
           c = a.resolve()
           addr = 0x7E00 + 50 + len(c)
-          # 1バイト追加されたためパッチ位置を c[17], c[18] にシフト
           c[17], c[18] = addr & 0xFF, (addr >> 8) & 0xFF
           
           out = ["A $MAIN_LOOP 1 x"]
           for b in c:
-              out.append(f"Z $O x A $O {b} x P $O x")
+              if b <= 128:
+                  out.append(f"Z $O x A $O {b} x P $O x")
+              else:
+                  out.append(f"Z $O x S $O {256 - b} x P $O x")
                   
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
           
@@ -172,7 +173,6 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
           
-          # 1バイトずつ確実に転送し、timeoutを300秒に延長してQEMUの強制終了を防ぐ
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
@@ -186,7 +186,7 @@ jobs:
           time.sleep(10)
           EOF
           
-          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
           
           cat << 'EOF' > make_os.py
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
@@ -194,12 +194,13 @@ jobs:
           boot += bytearray([0xB8,0x00,0x20,0x8E,0xD8,0x8E,0xC0,0xB9,0x00,0x80,0x31,0xC0,0xBF,0x00,0x00,0xF3,0xAB,0xBF,0x00,0x00,0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE])
           payload = open("compiler2.bin", "rb").read()
           final_img = boot + payload + bytearray([0xFA, 0xF4, 0xEB, 0xFD])
-          final_img += bytearray(63 * 512 - len(final_img))
+          # 究極の回避策: 10MBにパディングしてハードディスクのジオメトリを確定させ、読み込みエラーを完全に防ぐ
+          final_img += bytearray(10 * 1024 * 1024 - len(final_img))
           open("void_os2.img", "wb").write(final_img)
           EOF
           python3 make_os.py
           
-          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
           
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
