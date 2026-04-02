@@ -172,11 +172,9 @@ jobs:
         run: |
           echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
           
-          # [Gen 1] C言語(S0)で作ったジェネレータから Gen 1 の VoidOS を作成
           ./baremetal_aot_gen < pure_s1.rib
           mv void_os.img void_os1.img
           
-          # [Gen 1 実行] Gen 1 の OS を起動し、pure_s1.rib をコンパイルさせて compiler1.bin (テキスト) を得る
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
@@ -189,23 +187,20 @@ jobs:
           sys.stdout.buffer.flush()
           time.sleep(10)
           EOF
-          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os1.img -display none -serial stdio > compiler1.bin || true
           
-          # [Gen 2] 出力されたテキスト(compiler1.bin) をジェネレータに通し、Gen 2 の VoidOS を作成
+          # 究極の回避策: -accel tcg,thread=single を追加し、QEMUのデッドロック/クラッシュを完全に防ぐ
+          python3 feed_self.py | timeout 300 qemu-system-x86_64 -accel tcg,thread=single -drive format=raw,file=void_os1.img -display none -serial stdio > compiler1.bin || true
+          
           ./baremetal_aot_gen < compiler1.bin
           mv void_os.img void_os2.img
           
-          # [Gen 2 実行] Gen 2 の OS を起動し、再度 pure_s1.rib をコンパイルさせて compiler2.bin (テキスト) を得る
-          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler2.bin || true
+          python3 feed_self.py | timeout 300 qemu-system-x86_64 -accel tcg,thread=single -drive format=raw,file=void_os2.img -display none -serial stdio > compiler2.bin || true
           
-          # [Gen 3] 出力されたテキスト(compiler2.bin) をジェネレータに通し、Gen 3 の VoidOS を作成
           ./baremetal_aot_gen < compiler2.bin
           mv void_os.img void_os3.img
           
-          # [Gen 3 実行] Gen 3 の OS を起動し、再度 pure_s1.rib をコンパイルさせて compiler3.bin (テキスト) を得る
-          python3 feed_self.py | timeout 300 qemu-system-x86_64 -drive format=raw,file=void_os3.img -display none -serial stdio > compiler3.bin || true
+          python3 feed_self.py | timeout 300 qemu-system-x86_64 -accel tcg,thread=single -drive format=raw,file=void_os3.img -display none -serial stdio > compiler3.bin || true
           
-          # 3世代の出力テキストのハッシュを比較する
           SEED_HASH=$(sha256sum pure_s1.rib | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER2_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
