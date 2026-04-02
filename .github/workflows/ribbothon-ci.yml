@@ -175,11 +175,10 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           mv void_os.img void_os1.img
           
-          # Pythonを賢くし、出力結果を監視して 0xFF を見つけたら即座にQEMUを道連れにして正常終了する
+          # 早とちりでQEMUを落とすバグを削除し、全データ送信完了まで確実に待機するPythonスクリプト
           cat << 'EOF' > feed_self.py
-          import sys, time, subprocess, os, threading
+          import sys, time, subprocess, threading
           
-          # QEMUをサブプロセスとして起動
           img = sys.argv[1]
           qemu = subprocess.Popen(
               ["qemu-system-x86_64", "-drive", f"format=raw,file={img}", "-display", "none", "-serial", "stdio"],
@@ -188,41 +187,37 @@ jobs:
               stderr=subprocess.DEVNULL
           )
           
-          # 出力読み取りスレッド (0xFFを見つけたら終了)
           output = bytearray()
           def read_output():
               while True:
                   c = qemu.stdout.read(1)
-                  if not c: break
-                  output.extend(c)
-                  if c == b'\xff':
+                  if not c:
                       break
+                  output.extend(c)
           
           t = threading.Thread(target=read_output)
+          t.daemon = True
           t.start()
           
-          # データ送信
           time.sleep(2)
-          d = open("pure_s1.rib", "rb").read()
+          with open("pure_s1.rib", "rb") as f:
+              d = f.read()
+          
           for c in d:
               qemu.stdin.write(bytes([c]))
               qemu.stdin.flush()
               time.sleep(0.005)
-              if not t.is_alive(): break # 既に終了していれば送信もやめる
           
           qemu.stdin.write(b"\xff")
           qemu.stdin.flush()
           
-          # 最大10秒待ってからQEMUを強制キル
-          t.join(10)
+          time.sleep(10)
           qemu.terminate()
           qemu.wait()
           
-          # 結果を出力 (0xFFも含める)
           sys.stdout.buffer.write(output)
           EOF
           
-          # timeoutコマンドは使わず、Python内で安全にQEMUを管理する
           python3 feed_self.py void_os1.img > compiler1.bin
           
           ./baremetal_aot_gen < compiler1.bin
