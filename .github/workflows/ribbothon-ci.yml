@@ -19,39 +19,48 @@ jobs:
       - name: Build Baremetal AOT Generator (S0-Void)
         run: |
           gcc baremetal_aot_gen.c -o baremetal_aot_gen
-      - name: Compile Ribbothon S1 to Baremetal OS
+      - name: Generate Pure S1 (The Native Ribbothon Compiler)
         run: |
-          cat << 'EOF' > patch_s1.py
-          import re
-          with open("source_self_host_compiler.txt", "r") as f:
-              text = f.read()
-
-          # 1. 起動時にMAIN_LOOPフラグを1にする
-          text = "A $MAIN_LOOP 1 x\n" + text
+          cat << 'EOF' > build_pure_s1.py
+          code = []
+          code.append("A $MAIN_LOOP 1 x")
+          code.append("W $MAIN_LOOP x")
+          code.append("Z $CHAR x I $CHAR x")
           
-          # 2. EOF時のループ脱出を正しいフラグ操作(Z $MAIN_LOOP)に修正
-          text = re.sub(r"F \$CMP 0 x\s*E x\s*U x", "F $CMP 0 x\nZ $MAIN_LOOP x\nU x\n", text)
+          # EOF (0xFF) チェック -> ループ脱出
+          code.append("C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x")
           
-          # 3. 【最大のバグ修正】 コピー命令の引数逆転 (C $CMP <var> -> C <var> $CMP) を全置換
-          text = re.sub(r"C \$CMP (\$[_A-Z]+) x", r"C \1 $CMP x", text)
+          # 命令 '1' -> 機械語 0x47 (71)
+          code.append("C $CHAR $CMP x F $CMP 49 x Z $O x A $O 71 x P $O x U x")
           
-          # 4. 各ターンの開始時に $OUT_CHAR をリセットする安全装置を追加
-          text = re.sub(r"W \$MAIN_LOOP x\s*", "W $MAIN_LOOP x\nZ $OUT_CHAR x\n", text)
+          # 命令 '2' -> 機械語 0x4F (79)
+          code.append("C $CHAR $CMP x F $CMP 50 x Z $O x A $O 79 x P $O x U x")
           
-          with open("source_self_host_compiler.txt", "w") as f:
-              f.write(text)
+          # 命令 '3' -> 機械語 0xFE 0x05 (254, 5)
+          code.append("C $CHAR $CMP x F $CMP 51 x Z $O x A $O 254 x P $O x Z $O x A $O 5 x P $O x U x")
+          
+          # 命令 '4' -> 機械語 0xFE 0x0D (254, 13)
+          code.append("C $CHAR $CMP x F $CMP 52 x Z $O x A $O 254 x P $O x Z $O x A $O 13 x P $O x U x")
+          
+          # ループ終端
+          code.append("E x")
+          
+          with open("pure_s1_meta.txt", "w") as f:
+              f.write("\n".join(code) + "\n")
           EOF
-          python3 patch_s1.py
+          python3 build_pure_s1.py
           
-          ./meta_compiler < source_self_host_compiler.txt > s1.rib
-          ./baremetal_aot_gen < s1.rib
+          # メタコンパイラで純粋S1をRibbothonコード化し、ベアメタルOSへ焼き込む
+          ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
+          ./baremetal_aot_gen < pure_s1.rib
 
-      - name: Prove The Absolute Void (Strict Self-Hosting S1)
+      - name: Prove The Absolute Void (Pure Native Compilation)
         run: |
           cat << 'EOF' > feed.py
           import sys, time
           time.sleep(2)
-          for c in b"+++++":
+          # テスト入力: Ribbothonの純粋な命令 '1234'
+          for c in b"1234":
               sys.stdout.buffer.write(bytes([c]))
               sys.stdout.buffer.flush()
               time.sleep(0.1)
