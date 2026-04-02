@@ -42,7 +42,8 @@ jobs:
                           self.code[pos+1] = (off >> 8) & 0xFF
                   return self.code
           a = Asm()
-          a.emit(0xBE, 0x00, 0x00, 0xBB, 0x00, 0x80)
+          # 致命的バグ修正: ds=0x0000(セグメント防壁), si=ソース位置, bx=0x1000(安全なテープ位置)
+          a.emit(0x31, 0xC0, 0x8E, 0xD8, 0xBE, 0x00, 0x00, 0xBB, 0x00, 0x10)
           a.label("loop")
           a.emit(0xAC, 0x3C, 0xFF)
           a.jcc8(0x74, "halt")
@@ -71,17 +72,21 @@ jobs:
           a.label("s8")
           a.jmp16("loop")
           a.label("halt"); a.emit(0xFA, 0xF4, 0xEB, 0xFD)
+          
           c = a.resolve()
-          addr = 0x7E00 + len(c)
-          c[1], c[2] = addr & 0xFF, (addr >> 8) & 0xFF
+          addr = 0x7E00 + 50 + len(c)
+          c[5], c[6] = addr & 0xFF, (addr >> 8) & 0xFF
+          
           out = ["A $MAIN_LOOP 1 x"]
           for b in c: out.append(f"Z $O x A $O {b} x P $O x")
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
+          
           open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
           EOF
           python3 build_pure_s1.py
           ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
           ./baremetal_aot_gen < pure_s1.rib
+
       - name: Prove The Absolute Void (Pure Native Compilation)
         run: |
           cat << 'EOF' > feed.py
@@ -101,6 +106,7 @@ jobs:
           echo ""
           echo "Hexdump of Output:"
           hexdump -C void_output.txt
+
       - name: Prove Determinism (Quad-Crown DDC)
         run: |
           sudo apt-get install -y clang tcc
@@ -121,6 +127,7 @@ jobs:
           echo "TCC OS Hash:   $HASH_TCC"
           if [ "$HASH_GCC" != "$HASH_CLANG" ] || [ "$HASH_GCC" != "$HASH_TCC" ]; then echo "FAIL: DDC Mismatch!"; exit 1; fi
           echo "SUCCESS: Absolute compiler determinism proven."
+
       - name: Dual-Oracle Semantic Validation (Host VM vs Baremetal)
         run: |
           printf "1234\xff" > pure_input.bin
@@ -130,6 +137,7 @@ jobs:
           echo "Baremetal VM (Native VoidOS) Hexdump:"
           hexdump -C void_output.txt
           if cmp -s host_out.bin void_output.txt; then echo "SUCCESS: Dual-Oracle logic perfectly matched across dimensions."; else echo "FAIL: Semantic mismatch between C-VM and Baremetal!"; exit 1; fi
+
       - name: Mutation Testing (Source Corruption Catch)
         run: |
           sed 's/A $O 67 x/A $O 68 x/' pure_s1_meta.txt > mutated_meta.txt
@@ -140,6 +148,7 @@ jobs:
           echo "Mutated Baremetal VM Hexdump:"
           hexdump -C mutated_out.bin
           if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
+
       - name: Prove Semantic Stability (Fixed-Point Hash Verification)
         run: |
           echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
