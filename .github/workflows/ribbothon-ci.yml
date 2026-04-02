@@ -56,8 +56,7 @@ jobs:
           cmd('3', [0x43])
           cmd('4', [0x4B])
           cmd('5', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07])
-          # THREチェックを削除し、純粋に送信するだけの安全な出力ルーチンへ変更
-          cmd('6', [0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
+          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
           cmd('9', [0x80, 0x07, 0x03])
           cmd('a', [0x80, 0x2F, 0x03])
           
@@ -88,14 +87,13 @@ jobs:
           
           c = a.resolve()
           addr = 0x7E00 + 50 + len(c)
+          
+          # 究極の修正: ポインタを破壊せず、正しく[17], [18]の即値を書き換える
           c[17], c[18] = addr & 0xFF, (addr >> 8) & 0xFF
           
           out = ["A $MAIN_LOOP 1 x"]
           for b in c:
-              if b <= 128:
-                  out.append(f"Z $O x A $O {b} x P $O x")
-              else:
-                  out.append(f"Z $O x S $O {256 - b} x P $O x")
+              out.append(f"Z $O x A $O {b} x P $O x")
                   
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
           
@@ -173,7 +171,6 @@ jobs:
           ./baremetal_aot_gen < pure_s1.rib
           ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
           
-          # UART決壊を防ぐ究極の1バイト転送（timeout 300秒で確実性を担保）
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
@@ -195,10 +192,7 @@ jobs:
           boot += bytearray([0xB8,0x00,0x20,0x8E,0xD8,0x8E,0xC0,0xB9,0x00,0x80,0x31,0xC0,0xBF,0x00,0x00,0xF3,0xAB,0xBF,0x00,0x00,0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE])
           payload = open("compiler2.bin", "rb").read()
           final_img = boot + payload + bytearray([0xFA, 0xF4, 0xEB, 0xFD])
-          
-          # 究極の回避策: 10MBにパディングしてハードディスクのジオメトリを確定させ、読み込みエラーを完全に防ぐ
           final_img += bytearray(10 * 1024 * 1024 - len(final_img))
-          
           open("void_os2.img", "wb").write(final_img)
           EOF
           python3 make_os.py
