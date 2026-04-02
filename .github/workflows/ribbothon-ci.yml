@@ -42,7 +42,6 @@ jobs:
                           self.code[pos+1] = (off >> 8) & 0xFF
                   return self.code
           a = Asm()
-          # 致命的バグ修正: ds=0x0000(セグメント防壁), si=ソース位置, bx=0x1000(安全なテープ位置)
           a.emit(0x31, 0xC0, 0x8E, 0xD8, 0xBE, 0x00, 0x00, 0xBB, 0x00, 0x10)
           a.label("loop")
           a.emit(0xAC, 0x3C, 0xFF)
@@ -52,7 +51,8 @@ jobs:
           cmd('1', [0x43]); cmd('2', [0x4B]); cmd('3', [0xFE, 0x07]); cmd('4', [0xFE, 0x0F])
           cmd('9', [0x80, 0x07, 0x03]); cmd('a', [0x80, 0x2F, 0x03])
           cmd('5', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
-          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xFA, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07])
+          # 修正: 0x74 0xFA を 0x74 0xF8 に変更し、getcharのハングアップを根絶
+          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07])
           a.emit(0x3C, ord('7')); a.jcc8(0x75, "s7")
           a.emit(0x80, 0x3F, 0x00); a.jcc8(0x75, "s7")
           a.emit(0xB9, 0x01, 0x00)
@@ -100,7 +100,7 @@ jobs:
           sys.stdout.buffer.flush()
           time.sleep(10)
           EOF
-          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
+          python3 feed.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
           echo "Output from VoidOS:"
           cat void_output.txt
           echo ""
@@ -144,7 +144,7 @@ jobs:
           ./meta_compiler < mutated_meta.txt > mutated.rib
           ./baremetal_aot_gen < mutated.rib
           mv void_os.img mutated_os.img
-          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=mutated_os.img -display none -serial stdio > mutated_out.bin || true
+          python3 feed.py | timeout 30 qemu-system-x86_64 -drive format=raw,file=mutated_os.img -display none -serial stdio > mutated_out.bin || true
           echo "Mutated Baremetal VM Hexdump:"
           hexdump -C mutated_out.bin
           if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
@@ -154,19 +154,23 @@ jobs:
           echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
           ./baremetal_aot_gen < pure_s1.rib
           ./ribbothon pure_s1.rib < pure_s1.rib > compiler1.bin
+          
+          # 修正: UART溢れを防ぐため1文字ずつ丁寧に転送し、タイムアウトを120秒に延長
           cat << 'EOF' > feed_self.py
           import sys, time
           time.sleep(2)
           d = open("pure_s1.rib", "rb").read()
-          for i in range(0, len(d), 16):
-              sys.stdout.buffer.write(d[i:i+16])
+          for c in d:
+              sys.stdout.buffer.write(bytes([c]))
               sys.stdout.buffer.flush()
-              time.sleep(0.005)
+              time.sleep(0.003)
           sys.stdout.buffer.write(b"\xff")
           sys.stdout.buffer.flush()
-          time.sleep(5)
+          time.sleep(10)
           EOF
-          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          
+          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > compiler2.bin || true
+          
           cat << 'EOF' > make_os.py
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
           boot += bytearray(510 - len(boot)) + bytearray([0x55, 0xAA])
@@ -177,13 +181,17 @@ jobs:
           open("void_os2.img", "wb").write(final_img)
           EOF
           python3 make_os.py
-          python3 feed_self.py | timeout 60 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          
+          python3 feed_self.py | timeout 120 qemu-system-x86_64 -drive format=raw,file=void_os2.img -display none -serial stdio > compiler3.bin || true
+          
           SEED_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
           COMPILER2_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
+          
           echo "Seed (C-origin):   $SEED_HASH"
           echo "Compiler (Gen 1):  $COMPILER1_HASH"
           echo "Compiler2 (Gen 2): $COMPILER2_HASH"
+          
           if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
           if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ]; then echo "❌ FIXED POINT MISMATCH" && exit 1; fi
           echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
