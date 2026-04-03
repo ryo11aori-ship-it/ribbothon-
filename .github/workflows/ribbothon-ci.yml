@@ -295,13 +295,23 @@ jobs:
           import subprocess
           subprocess.run(["nasm", "-f", "bin", "runtime.asm", "-o", "runtime.bin"], check=True)
           with open("runtime.bin", "rb") as f: runtime = f.read()
-          def emit_byte(b):
-           if b==0: return "[-]."
-           if b<=15: return "[-]"+"+"*b+"."
-           q, r = divmod(b, 10)
-           return "[-]>[-]++++++++++[<"+"+"*q+">-]<"+"+"*r+"."
-          bf2 = ""
-          for b in runtime: bf2 += emit_byte(b)
+          def emit_byte(target, current):
+           if target == current: return "."
+           diff = (target - current) % 256
+           if diff <= 128:
+            if diff <= 15: return "+" * diff + "."
+            q, r = divmod(diff, 16)
+            return ">[-]++++++++[<" + "+"*q + ">-]<" + "+"*r + "."
+           else:
+            diff = 256 - diff
+            if diff <= 15: return "-" * diff + "."
+            q, r = divmod(diff, 16)
+            return ">[-]++++++++[<" + "-"*q + ">-]<" + "-"*r + "."
+          bf2 = "[-]"
+          curr = 0
+          for b in runtime:
+           bf2 += emit_byte(b, curr)
+           curr = b
           bf2 += ">>,+[-"
           targets = {
            49: [0x47, 0x90, 0x90, 0x90, 0x90],
@@ -315,11 +325,14 @@ jobs:
           }
           for t, block in targets.items():
            bf2 += "[->+>+<<]>>[-<<+>>]<" + "-"*t + ">+<[>[-]<[-]]>["
-           for b in block: bf2 += ">" + emit_byte(b) + "<"
-           bf2 += "[-]]<<"
+           curr = 0
+           for b in block:
+            bf2 += ">" + emit_byte(b, curr) + "<"
+            curr = b
+           bf2 += ">[-]<[-]]<<"
           bf2 += "[-],+]"
-          bf2 += emit_byte(0xFA)
-          bf2 += emit_byte(0xF4)
+          bf2 += ">" + emit_byte(0xFA, 0) + "<"
+          bf2 += ">" + emit_byte(0xF4, 0xFA) + "<"
           with open("aot_compiler.rib", "w") as f: f.write(bf_to_rib(bf2))
           EOF
           python3 build_compilers.py
@@ -354,5 +367,14 @@ jobs:
           echo "Gen 2: $H2"
           echo "Gen 3: $H3"
           if [ "$H2" = "$EMPTY" ] || [ "$H3" = "$EMPTY" ]; then echo "FAIL: Output is empty!"; exit 1; fi
-          if [ "$H2" != "$H3" ]; then echo "FAIL: Native fixed-point failed!"; exit 1; fi
+          if [ "$H2" != "$H3" ]; then
+            echo "FAIL: Native fixed-point failed!"
+            echo "--- Debug: Hexdump of gen1.img (First 128 bytes) ---"
+            hexdump -C gen1.img | head -n 8
+            echo "--- Debug: Hexdump of gen2.img (First 128 bytes) ---"
+            hexdump -C gen2.img | head -n 8
+            echo "--- Debug: Hexdump of gen2.img (Last 128 bytes) ---"
+            hexdump -C gen2.img | tail -n 8
+            exit 1
+          fi
           echo "SUCCESS: Strict absolute self-hosting achieved across all dimensions."
