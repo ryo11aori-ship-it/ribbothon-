@@ -116,3 +116,15 @@ jobs:
           echo "Mutated Baremetal VM Hexdump:"
           hexdump -C mutated_out.bin
           if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
+
+      - name: Verify Compiler Fixed-Point
+        run: |
+          ./meta_compiler < source_self_host_compiler.txt > compiler1.rib
+          ./ribbothon compiler1.rib < source_self_host_compiler.txt > compiler2.rib
+          ./ribbothon compiler2.rib < source_self_host_compiler.txt > compiler3.rib
+          HASH2=$(sha256sum compiler2.rib | awk '{print $1}')
+          HASH3=$(sha256sum compiler3.rib | awk '{print $1}')
+          echo "Compiler 2 Hash: $HASH2"
+          echo "Compiler 3 Hash: $HASH3"
+          if [ "$HASH2" != "$HASH3" ]; then echo "FAIL: Fixed-point verification failed!"; exit 1; fi
+          echo "SUCCESS: Compiler fixed-point reached."
