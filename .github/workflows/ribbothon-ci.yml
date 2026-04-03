@@ -192,24 +192,29 @@ jobs:
           cmp al, '1'
           jne .not1
           inc di
+          jmp main_loop
           .not1:
           cmp al, '2'
           jne .not2
           dec di
+          jmp main_loop
           .not2:
           cmp al, '3'
           jne .not3
           inc byte [es:di]
+          jmp main_loop
           .not3:
           cmp al, '4'
           jne .not4
           dec byte [es:di]
+          jmp main_loop
           .not4:
           cmp al, '5'
           jne .not5
           mov al, [es:di]
           mov [fs:bp], al
           inc bp
+          jmp main_loop
           .not5:
           cmp al, '6'
           jne .not6
@@ -221,11 +226,12 @@ jobs:
           mov al, 0xff
           .save:
           mov [es:di], al
+          jmp main_loop
           .not6:
           cmp al, '7'
           jne .not7
           cmp byte [es:di], 0
-          jnz .not7
+          jnz .done7
           mov dx, 1
           .fwd:
           lodsb
@@ -239,11 +245,13 @@ jobs:
           .f2:
           test dx, dx
           jnz .fwd
+          .done7:
+          jmp main_loop
           .not7:
           cmp al, '8'
           jne .not8
           cmp byte [es:di], 0
-          jz .not8
+          jz .done8
           sub si, 2
           mov dx, 1
           .bwd:
@@ -260,6 +268,8 @@ jobs:
           test dx, dx
           jnz .bwd
           add si, 2
+          .done8:
+          jmp main_loop
           .not8:
           jmp main_loop
           halt:
