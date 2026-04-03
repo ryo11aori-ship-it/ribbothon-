@@ -158,57 +158,146 @@ jobs:
 
       - name: Verify Strict Ultimate Native Fixed-Point
         run: |
+          cat << 'EOF' > boot.asm
+          [org 0x7c00]
+          xor ax, ax
+          mov ds, ax
+          mov ah, 0x42
+          mov si, dap
+          int 0x13
+          mov ax, 0x2000
+          mov es, ax
+          xor ax, ax
+          xor di, di
+          mov cx, 0x8000
+          rep stosw
+          xor di, di
+          mov ax, 0x1000
+          mov ds, ax
+          xor si, si
+          main_loop:
+          lodsb
+          or al, al
+          jz halt
+          cmp al, '1'
+          jne .not1
+          inc di
+          .not1:
+          cmp al, '2'
+          jne .not2
+          dec di
+          .not2:
+          cmp al, '3'
+          jne .not3
+          inc byte [es:di]
+          .not3:
+          cmp al, '4'
+          jne .not4
+          dec byte [es:di]
+          .not4:
+          cmp al, '5'
+          jne .not5
+          mov dx, 0x3fd
+          .tx_wait:
+          in al, dx
+          test al, 0x20
+          jz .tx_wait
+          mov al, [es:di]
+          mov dx, 0x3f8
+          out dx, al
+          .not5:
+          cmp al, '6'
+          jne .not6
+          mov dx, 0x3fd
+          mov cx, 0xffff
+          .rx_wait:
+          in al, dx
+          test al, 1
+          jnz .got_rx
+          loop .rx_wait
+          mov al, 0xff
+          jmp .save
+          .got_rx:
+          mov dx, 0x3f8
+          in al, dx
+          .save:
+          mov [es:di], al
+          .not6:
+          cmp al, '7'
+          jne .not7
+          cmp byte [es:di], 0
+          jnz .not7
+          mov bx, 1
+          .fwd:
+          lodsb
+          cmp al, '7'
+          jne .f1
+          inc bx
+          .f1:
+          cmp al, '8'
+          jne .f2
+          dec bx
+          .f2:
+          test bx, bx
+          jnz .fwd
+          .not7:
+          cmp al, '8'
+          jne .not8
+          cmp byte [es:di], 0
+          jz .not8
+          sub si, 2
+          mov bx, 1
+          .bwd:
+          mov al, [si]
+          dec si
+          cmp al, '8'
+          jne .b1
+          inc bx
+          .b1:
+          cmp al, '7'
+          jne .b2
+          dec bx
+          .b2:
+          test bx, bx
+          jnz .bwd
+          add si, 2
+          .not8:
+          jmp main_loop
+          halt:
+          cli
+          hlt
+          dap:
+          db 0x10, 0
+          dw 100
+          dw 0x0000, 0x1000
+          dq 1
+          times 510-($-$$) db 0
+          dw 0xaa55
+          EOF
+          nasm -f bin boot.asm -o boot.bin
           cat << 'EOF' > build_aot.py
           import sys
-          def E(b): return "[-]"+"+"*b+"."
-          def S(t,s,d=0):
-           r=">>>>[-]>[-]<<<<<[>>>>+>+<<<<<-]>>>>>[<<<<+>>>>-]<<<<<>>>>"+"-"*t+">+<[>[-]<[-]]>[<<<<<"
-           for _ in range(s): r+=">+>>>[-]>[-]<<<<>>>+<<<[>>>-<<<>>>>+<<<<-]>>>>[<<<<+>>>>-]<[<<+>>-]<<<<"
-           if d>0: r+=">>>"+"+"*d+"<<<"
-           elif d<0: r+=">>>"+"-"*-d+"<<<"
-           return r+">>>>>[-]]<<<<<"
-          sf=S(49,1)+S(50,1)+S(51,2)+S(52,2)+S(53,14)+S(54,23)+S(57,3)+S(97,3)+S(55,7,1)+S(56,7,-1)
-          sb=S(49,1)+S(50,1)+S(51,2)+S(52,2)+S(53,14)+S(54,23)+S(57,3)+S(97,3)+S(55,7,-1)+S(56,7,1)
-          def C(t,b):
-           r=">>>>[-]>[-]<<<<<[>>>>+>+<<<<<-]>>>>>[<<<<+>>>>-]<<<<<>>>>"+"-"*t+">+<[>[-]<[-]]>[<"
-           for x in b: r+=E(x)
-           return r+">>>>[-]]<<<<<"
-          bf=">>>>>>,+[->>>>>>,+]<<<<<<[<<<<<<]>>>>>>"
-          bf+=">>>>"
-          for x in [250,49,192,142,216,142,192,142,208,188,0,124,180,2,176,62,181,0,177,2,182,0,187,0,126,205,19,234,0,126,0,0]: bf+=E(x)
-          bf+="[-]."*(510-32)+E(85)+E(170)
-          for x in [184,0,32,142,216,142,192,185,0,128,49,192,191,0,0,243,171,191,0,0,186,251,3,176,128,238,186,248,3,176,1,238,186,249,3,176,0,238,186,251,3,176,3,238,186,250,3,176,1,238]: bf+=E(x)
-          bf+="<<<<["
-          bf+=C(49,[0x47])+C(50,[0x4F])+C(51,[0xFE,0x05])+C(52,[0xFE,0x0D])
-          bf+=C(53,[0xBA,0xFD,0x03,0xEC,0xA8,0x20,0x74,0xF8,0x8A,0x05,0xBA,0xF8,0x03,0xEE])
-          bf+=C(54,[0xBA,0xFD,0x03,0xB9,0xFF,0xFF,0xEC,0xA8,0x01,0x75,0x06,0xE2,0xF9,0xB0,0xFF,0xEB,0x04,0xBA,0xF8,0x03,0xEC,0x88,0x05])
-          bf+=C(57,[0x80,0x05,0x03])+C(97,[0x80,0x2D,0x03])
-          co=">>>>[-]>[-]<<<<<[>>>>+>+<<<<<-]>>>>>[<<<<+>>>>-]<<<<<>>>>"+"-"*55+">+<[>[-]<[-]]>[<"
-          co+=E(128)+E(61)+E(0)+E(15)+E(132)+"<<<"
-          co+=">[-]+++++++>[-]>[-]+<<<[-]->[>>>>>>+<<<<<<-]>[>>>>>>+<<<<<<-]>[>>>>>>+<<<<<<-]>>>"
-          co+="[<<<"+sf+">>> <[>>>>>>+<<<<<<-] <[>>>>>>+<<<<<<-] >>[>>>>>>+<<<<<<-] >>>>]"
-          co+="<<<+[- >[<<<<<<+>>>>>>-] >[<<<<<<+>>>>>>-] <<<<<<+]"
-          co+="+"*55+">.>.<<>>>>>[-]]<<<<<"
-          bf+=co
-          cc=">>>>[-]>[-]<<<<<[>>>>+>+<<<<<-]>>>>>[<<<<+>>>>-]<<<<<>>>>"+"-"*56+">+<[>[-]<[-]]>[<"
-          cc+=E(128)+E(61)+E(0)+E(15)+E(133)+"<<<"
-          cc+=">[-]+++++++>[-]>[-]+<<<[-]->[<<<<<<+>>>>>>-]>[<<<<<<+>>>>>>-]>[<<<<<<+>>>>>>-]<<<<<<<<<"
-          cc+="[<<<"+sb+">>> <[<<<<<<+>>>>>>-] <[<<<<<<+>>>>>>-] >>[<<<<<<+>>>>>>-] <<<<<<>>>>]"
-          cc+="<<<+[- >[>>>>>>+<<<<<<-] >[>>>>>>+<<<<<<-] >>>>>>+]"
-          cc+="+"*56
-          cc+=">>>>[-]-<<<<>[>>>-<<<-]>>>[<<<+>>>-]<<<"
-          cc+=">>>[-]-<<<>[>>-<<-]>>[<<+>>-]<<"
-          cc+="<<"
-          cc+=">+>>>[-]>[-]<<<<>>>+<<<[>>>-<<<>>>>+<<<<-]>>>>[<<<<+>>>>-]<[<<+>>-]<<<<"
-          cc+=">.>.<<>>>>>[-]]<<<<<"
-          bf+=cc
-          bf+=">>>>>>]"
-          bf+=">>>>[-]"+"+"*128+"[>[-]"+"+"*252+"[<<<<<.>>>>>-]<[-]<<<<]"
-          m={">":"1","<":"2","+":"3","-":"4",".":"5",",":"6","[":"7","]":"8"}
-          r="".join([m[c] for c in bf if c in m])
-          f="".join([x+"x" if (i+1)%5==0 else x for i,x in enumerate(r)])
-          if len(r)%5!=0: f+="x"
-          with open("aot_compiler.rib","w") as F: F.write(f)
+          with open("boot.bin", "rb") as f:
+           boot = f.read()
+          bf = ""
+          for b in boot:
+           if b == 0:
+            bf += "[-]."
+           elif b <= 15:
+            bf += "[-]" + "+" * b + "."
+           else:
+            q, r = divmod(b, 10)
+            bf += ">[-]<[-]++++++++++[>"+"+"*q+"<-]>"+"+"*r+".<"
+          bf += ",+[-.-,+]"
+          m = {">":"1", "<":"2", "+":"3", "-":"4", ".":"5", ",":"6", "[":"7", "]":"8"}
+          rib = "".join([m[c] for c in bf if c in m])
+          f_out = ""
+          for i, x in enumerate(rib):
+           f_out += x
+           if (i + 1) % 5 == 0: f_out += "x"
+          if len(rib) % 5 != 0: f_out += "x"
+          with open("aot_compiler.rib", "w") as f:
+           f.write(f_out)
           EOF
           python3 build_aot.py
           ./ribbothon aot_compiler.rib < aot_compiler.rib > gen1.img
