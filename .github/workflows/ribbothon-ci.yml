@@ -491,8 +491,8 @@ jobs:
           halt:
           cli
           hlt
-          dap_prog: db 0x10, 0, 127, 0, 0x0000, 0x1000, 0, 0, 0, 0
-          dap_input: db 0x10, 0, 127, 0, 0x0000, 0x4000, 0, 0, 0, 0
+          dap_prog: db 0x10, 0, 63, 0, 0x0000, 0x1000, 0, 0, 0, 0
+          dap_input: db 0x10, 0, 63, 0, 0x0000, 0x4000, 0, 0, 0, 0
           times 510-($-$$) db 0
           dw 0xaa55
           EOF
@@ -596,12 +596,12 @@ jobs:
           times 0xD0-($-$$) db 0
           dap:
               db 0x10, 0
-              dw 127
+              dw 63
               dw 0x7E00, 0x0000
               dq 1
           dap2:
               db 0x10, 0
-              dw 127
+              dw 63
               dw 0x0000, 0x4000
               dq 0
           entry:
@@ -689,10 +689,10 @@ jobs:
           out_file = sys.argv[2]
           if mode == "stage0":
               prog = sys.argv[3]; inp = sys.argv[4]
-              cmd = ["qemu-system-x86_64", "-drive", "format=raw,file=seed.img,index=0,if=ide", "-drive", f"format=raw,file={prog},index=1,if=ide", "-drive", f"format=raw,file={inp},index=2,if=ide", "-display", "none", "-monitor", "stdio"]
+              cmd = ["qemu-system-x86_64", "-drive", "format=raw,file=seed.img,index=0,if=ide,readonly=on", "-drive", f"format=raw,file={prog},index=1,if=ide,readonly=on", "-drive", f"format=raw,file={inp},index=2,if=ide,readonly=on", "-display", "none", "-monitor", "stdio"]
           else:
               boot = sys.argv[3]; inp = sys.argv[4]
-              cmd = ["qemu-system-x86_64", "-drive", f"format=raw,file={boot},index=0,if=ide", "-drive", f"format=raw,file={inp},index=1,if=ide", "-display", "none", "-monitor", "stdio"]
+              cmd = ["qemu-system-x86_64", "-drive", f"format=raw,file={boot},index=0,if=ide,readonly=on", "-drive", f"format=raw,file={inp},index=1,if=ide,readonly=on", "-display", "none", "-monitor", "stdio"]
           p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
           time.sleep(5)
           p.stdin.write(b"pmemsave 0x30000 65536 memdump.bin\nquit\n")
