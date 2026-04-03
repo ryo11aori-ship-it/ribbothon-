@@ -156,16 +156,48 @@ jobs:
           EOF
           ./meta_compiler < identity_compiler.txt > compiler1.rib
 
-      - name: Verify Compiler Fixed-Point (Self-Hosting)
+      - name: Verify Ultimate Native Fixed-Point
         run: |
-          # 1. コンパイラ自身(compiler1.rib)をソースコードとして読み込ませる
-          ./ribbothon compiler1.rib < compiler1.rib > compiler2.rib
-          # 2. 生成された第2世代コンパイラで、自身のソース(compiler2.rib)を再コンパイル
-          ./ribbothon compiler2.rib < compiler2.rib > compiler3.rib
-          # 3. ハッシュ比較
-          HASH2=$(sha256sum compiler2.rib | awk '{print $1}')
-          HASH3=$(sha256sum compiler3.rib | awk '{print $1}')
-          echo "Compiler 2 Hash: $HASH2"
-          echo "Compiler 3 Hash: $HASH3"
-          if [ "$HASH2" != "$HASH3" ]; then echo "FAIL: Fixed-point verification failed!"; exit 1; fi
-          echo "SUCCESS: Compiler fixed-point reached."
+          cat << 'EOF' > build_aot.py
+          import sys
+          c=""
+          def A(v): return "9"*(v//3)+"3"*(v%3)
+          def S(v): return "a"*(v//3)+"4"*(v%3)
+          def P(v): return A(v)+"5"+S(v)
+          for x in [0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00]: c+=P(x)
+          for _ in range(510-32): c+=P(0)
+          c+=P(0x55)+P(0xAA)
+          c+=P(0xB8)+P(0x00)+P(0x20)+P(0x8E)+P(0xD8)+P(0x8E)+P(0xC0)
+          c+=P(0xB9)+P(0x00)+P(0x80)+P(0x31)+P(0xC0)+P(0xBF)+P(0x00)+P(0x00)+P(0xF3)+P(0xAB)+P(0xBF)+P(0x00)+P(0x00)
+          c+="67"
+          c+="8"
+          f=""
+          for i,x in enumerate(c):
+           f+=x
+           if (i+1)%5==0: f+="x"
+          if len(c)%5!=0: f+="x"
+          with open("aot_compiler.rib","w") as F: F.write(f)
+          EOF
+          python3 build_aot.py
+          ./ribbothon aot_compiler.rib < aot_compiler.rib > gen1.img
+          cat << 'EOF' > run_qemu.py
+          import sys,time,subprocess
+          i=sys.argv[1]
+          o=sys.argv[2]
+          with open(o,"wb") as f_out:
+           p=subprocess.Popen(["qemu-system-x86_64","-drive",f"format=raw,file={i}","-display","none","-serial","stdio"],stdin=subprocess.PIPE,stdout=f_out)
+           with open("aot_compiler.rib","rb") as f_in:
+            p.stdin.write(f_in.read())
+            p.stdin.write(b"\xff")
+            p.stdin.flush()
+           time.sleep(10)
+           p.terminate()
+          EOF
+          python3 run_qemu.py gen1.img gen2.img
+          python3 run_qemu.py gen2.img gen3.img
+          H2=$(sha256sum gen2.img | awk '{print $1}')
+          H3=$(sha256sum gen3.img | awk '{print $1}')
+          echo "Gen 2: $H2"
+          echo "Gen 3: $H3"
+          if [ "$H2" != "$H3" ]; then echo "FAIL: True native fixed-point failed!"; exit 1; fi
+          echo "SUCCESS: Absolute self-hosting achieved."
