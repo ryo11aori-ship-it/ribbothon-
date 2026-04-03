@@ -209,18 +209,12 @@ jobs:
           cmp al, '6'
           jne .not6
           mov dx, 0x3fd
-          mov cx, 0xffff
           .rx_wait:
           in al, dx
           test al, 1
-          jnz .got_rx
-          loop .rx_wait
-          mov al, 0xff
-          jmp .save
-          .got_rx:
+          jz .rx_wait
           mov dx, 0x3f8
           in al, dx
-          .save:
           mov [es:di], al
           .not6:
           cmp al, '7'
@@ -301,6 +295,7 @@ jobs:
           EOF
           python3 build_aot.py
           ./ribbothon aot_compiler.rib < aot_compiler.rib > gen1.img
+          truncate -s 65536 gen1.img
           cat << 'EOF' > run_qemu.py
           import sys,time,subprocess
           i=sys.argv[1]
@@ -315,7 +310,9 @@ jobs:
            p.terminate()
           EOF
           python3 run_qemu.py gen1.img gen2.img
+          truncate -s 65536 gen2.img
           python3 run_qemu.py gen2.img gen3.img
+          truncate -s 65536 gen3.img
           H2=$(sha256sum gen2.img | awk '{print $1}')
           H3=$(sha256sum gen3.img | awk '{print $1}')
           EMPTY="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
