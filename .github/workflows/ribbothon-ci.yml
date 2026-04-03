@@ -378,3 +378,18 @@ jobs:
             exit 1
           fi
           echo "SUCCESS: Strict absolute self-hosting achieved across all dimensions."
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ribbothon-artifacts
+          path: |
+            *.rib
+            *.img
+            *.bin
+            *.bf
+            *.asm
+            *.py
+            ribbothon
+            meta_compiler
+            baremetal_aot_gen
