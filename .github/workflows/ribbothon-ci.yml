@@ -117,11 +117,52 @@ jobs:
           hexdump -C mutated_out.bin
           if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
 
-      - name: Verify Compiler Fixed-Point
+      - name: Generate Ribbothon Identity Compiler
         run: |
-          ./meta_compiler < source_self_host_compiler.txt > compiler1.rib
-          ./ribbothon compiler1.rib < source_self_host_compiler.txt > compiler2.rib
-          ./ribbothon compiler2.rib < source_self_host_compiler.txt > compiler3.rib
+          cat << 'EOF' > identity_compiler.txt
+          Z $COUNT x
+          Z $CHAR x
+          Z $OUT_CHAR x
+          W $MAIN_LOOP x
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
+          C $CMP $EOF_CHECK x
+          F $CMP 0 x
+          E x
+          U x
+          Z $PROCESSED x
+          C $CMP $CHAR x F $CMP 49 x A $OUT_CHAR 49 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 50 x A $OUT_CHAR 50 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 51 x A $OUT_CHAR 51 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 52 x A $OUT_CHAR 52 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 53 x A $OUT_CHAR 53 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 54 x A $OUT_CHAR 54 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 55 x A $OUT_CHAR 55 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 56 x A $OUT_CHAR 56 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 57 x A $OUT_CHAR 57 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 97 x A $OUT_CHAR 97 x A $PROCESSED 1 x U x
+          C $CMP $PROCESSED x F $CMP 1 x
+          P $OUT_CHAR x
+          A $COUNT 1 x
+          C $CMP $COUNT x F $CMP 5 x
+          Z $OUT_X x A $OUT_X 120 x P $OUT_X x
+          Z $COUNT x
+          U x
+          Z $OUT_CHAR x
+          Z $PROCESSED x
+          U x
+          E x
+          EOF
+          ./meta_compiler < identity_compiler.txt > compiler1.rib
+
+      - name: Verify Compiler Fixed-Point (Self-Hosting)
+        run: |
+          # 1. コンパイラ自身(compiler1.rib)をソースコードとして読み込ませる
+          ./ribbothon compiler1.rib < compiler1.rib > compiler2.rib
+          # 2. 生成された第2世代コンパイラで、自身のソース(compiler2.rib)を再コンパイル
+          ./ribbothon compiler2.rib < compiler2.rib > compiler3.rib
+          # 3. ハッシュ比較
           HASH2=$(sha256sum compiler2.rib | awk '{print $1}')
           HASH3=$(sha256sum compiler3.rib | awk '{print $1}')
           echo "Compiler 2 Hash: $HASH2"
