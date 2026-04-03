@@ -491,8 +491,16 @@ jobs:
           halt:
           cli
           hlt
-          dap_prog: db 0x10, 0, 63, 0, 0x0000, 0x1000, 0, 0, 0, 0
-          dap_input: db 0x10, 0, 63, 0, 0x0000, 0x4000, 0, 0, 0, 0
+          dap_prog:
+              db 0x10, 0
+              dw 63
+              dw 0x0000, 0x1000
+              dq 0
+          dap_input:
+              db 0x10, 0
+              dw 63
+              dw 0x0000, 0x4000
+              dq 0
           times 510-($-$$) db 0
           dw 0xaa55
           EOF
@@ -684,15 +692,19 @@ jobs:
           python3 build_compilers.py
           
           cat << 'EOF' > run_qemu.py
-          import sys, time, subprocess
+          import sys, time, subprocess, shutil
           mode = sys.argv[1]
           out_file = sys.argv[2]
           if mode == "stage0":
               prog = sys.argv[3]; inp = sys.argv[4]
-              cmd = ["qemu-system-x86_64", "-drive", "format=raw,file=seed.img,index=0,if=ide,readonly=on", "-drive", f"format=raw,file={prog},index=1,if=ide,readonly=on", "-drive", f"format=raw,file={inp},index=2,if=ide,readonly=on", "-display", "none", "-monitor", "stdio"]
+              shutil.copy(prog, "tmp_prog.img")
+              shutil.copy(inp, "tmp_inp.img")
+              cmd = ["qemu-system-x86_64", "-drive", "format=raw,file=seed.img,index=0,if=ide", "-drive", "format=raw,file=tmp_prog.img,index=1,if=ide", "-drive", "format=raw,file=tmp_inp.img,index=2,if=ide", "-display", "none", "-monitor", "stdio"]
           else:
               boot = sys.argv[3]; inp = sys.argv[4]
-              cmd = ["qemu-system-x86_64", "-drive", f"format=raw,file={boot},index=0,if=ide,readonly=on", "-drive", f"format=raw,file={inp},index=1,if=ide,readonly=on", "-display", "none", "-monitor", "stdio"]
+              shutil.copy(boot, "tmp_boot.img")
+              shutil.copy(inp, "tmp_inp.img")
+              cmd = ["qemu-system-x86_64", "-drive", "format=raw,file=tmp_boot.img,index=0,if=ide", "-drive", "format=raw,file=tmp_inp.img,index=1,if=ide", "-display", "none", "-monitor", "stdio"]
           p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
           time.sleep(5)
           p.stdin.write(b"pmemsave 0x30000 65536 memdump.bin\nquit\n")
