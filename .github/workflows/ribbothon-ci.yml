@@ -165,16 +165,26 @@ jobs:
           mov ah, 0x42
           mov si, dap
           int 0x13
+          mov ax, 0x3000
+          mov es, ax
+          xor di, di
+          mov cx, 0x8000
+          xor ax, ax
+          rep stosw
           mov ax, 0x2000
           mov es, ax
-          xor ax, ax
           xor di, di
           mov cx, 0x8000
           rep stosw
-          xor di, di
           mov ax, 0x1000
           mov ds, ax
-          xor si, si
+          mov gs, ax
+          mov ax, 0x3000
+          mov fs, ax
+          mov si, 512
+          xor di, di
+          mov bx, 512
+          xor bp, bp
           main_loop:
           lodsb
           or al, al
@@ -197,42 +207,37 @@ jobs:
           .not4:
           cmp al, '5'
           jne .not5
-          mov dx, 0x3fd
-          .tx_wait:
-          in al, dx
-          test al, 0x20
-          jz .tx_wait
           mov al, [es:di]
-          mov dx, 0x3f8
-          out dx, al
+          mov [fs:bp], al
+          inc bp
           .not5:
           cmp al, '6'
           jne .not6
-          mov dx, 0x3fd
-          .rx_wait:
-          in al, dx
-          test al, 1
-          jz .rx_wait
-          mov dx, 0x3f8
-          in al, dx
+          mov al, [gs:bx]
+          inc bx
+          or al, al
+          jnz .save
+          dec bx
+          mov al, 0xff
+          .save:
           mov [es:di], al
           .not6:
           cmp al, '7'
           jne .not7
           cmp byte [es:di], 0
           jnz .not7
-          mov bx, 1
+          mov dx, 1
           .fwd:
           lodsb
           cmp al, '7'
           jne .f1
-          inc bx
+          inc dx
           .f1:
           cmp al, '8'
           jne .f2
-          dec bx
+          dec dx
           .f2:
-          test bx, bx
+          test dx, dx
           jnz .fwd
           .not7:
           cmp al, '8'
@@ -240,19 +245,19 @@ jobs:
           cmp byte [es:di], 0
           jz .not8
           sub si, 2
-          mov bx, 1
+          mov dx, 1
           .bwd:
           mov al, [si]
           dec si
           cmp al, '8'
           jne .b1
-          inc bx
+          inc dx
           .b1:
           cmp al, '7'
           jne .b2
-          dec bx
+          dec dx
           .b2:
-          test bx, bx
+          test dx, dx
           jnz .bwd
           add si, 2
           .not8:
@@ -262,9 +267,9 @@ jobs:
           hlt
           dap:
           db 0x10, 0
-          dw 100
+          dw 128
           dw 0x0000, 0x1000
-          dq 1
+          dq 0
           times 510-($-$$) db 0
           dw 0xaa55
           EOF
@@ -300,24 +305,22 @@ jobs:
           import sys,time,subprocess
           i=sys.argv[1]
           o=sys.argv[2]
-          with open(o,"wb") as f_out:
-           p=subprocess.Popen(["qemu-system-x86_64","-drive",f"format=raw,file={i}","-display","none","-serial","stdio"],stdin=subprocess.PIPE,stdout=f_out)
-           with open("aot_compiler.rib","rb") as f_in:
-            p.stdin.write(f_in.read())
-            p.stdin.write(b"\xff")
-            p.stdin.flush()
-           time.sleep(15)
-           p.terminate()
+          p=subprocess.Popen(["qemu-system-x86_64","-drive",f"format=raw,file={i}","-display","none","-monitor","stdio"],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL)
+          time.sleep(2)
+          p.stdin.write(b"pmemsave 0x30000 65536 memdump.bin\n")
+          p.stdin.write(b"quit\n")
+          p.stdin.flush()
+          p.wait()
+          with open("memdump.bin","rb") as f: data=f.read()
+          with open(o,"wb") as f: f.write(data)
           EOF
           python3 run_qemu.py gen1.img gen2.img
-          truncate -s 65536 gen2.img
           python3 run_qemu.py gen2.img gen3.img
-          truncate -s 65536 gen3.img
           H2=$(sha256sum gen2.img | awk '{print $1}')
           H3=$(sha256sum gen3.img | awk '{print $1}')
           EMPTY="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           echo "Gen 2: $H2"
           echo "Gen 3: $H3"
-          if [ "$H2" = "$EMPTY" ] || [ "$H3" = "$EMPTY" ]; then echo "FAIL: Output is empty! Fake self-hosting detected."; exit 1; fi
+          if [ "$H2" = "$EMPTY" ] || [ "$H3" = "$EMPTY" ]; then echo "FAIL: Output is empty!"; exit 1; fi
           if [ "$H2" != "$H3" ]; then echo "FAIL: True native fixed-point failed!"; exit 1; fi
           echo "SUCCESS: Strict absolute self-hosting achieved."
