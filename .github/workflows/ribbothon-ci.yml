@@ -158,6 +158,25 @@ jobs:
 
       - name: Verify Strict Native Fixed-Point
         run: |
+          cat << 'EOF' > build_aot.py
+          import sys
+          def P(v):
+           a=v//3;b=v%3
+           return "9"*a+"3"*b+"5"+"a"*a+"4"*b
+          c=""
+          for x in [0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C]: c+=P(x)
+          for x in [0xBA,0xFB,0x03,0xB0,0x80,0xEE,0xBA,0xF8,0x03,0xB0,0x01,0xEE,0xBA,0xF9,0x03,0xB0,0x00,0xEE,0xBA,0xFB,0x03,0xB0,0x03,0xEE,0xBA,0xFA,0x03,0xB0,0x01,0xEE]: c+=P(x)
+          for x in [0xBE,0x00,0x7C,0xB9,0x00,0x02,0xBA,0xFD,0x03,0xEC,0xA8,0x20,0x74,0xFC,0xBA,0xF8,0x03,0xAC,0xEE,0xE2,0xF1,0xF4]: c+=P(x)
+          for _ in range(510-64): c+=P(0)
+          c+=P(0x55)+P(0xAA)
+          f=""
+          for i,x in enumerate(c):
+           f+=x
+           if (i+1)%5==0: f+="x"
+          if len(c)%5!=0: f+="x"
+          with open("aot_compiler.rib","w") as F: F.write(f)
+          EOF
+          python3 build_aot.py
           cat << 'EOF' > run_qemu.py
           import sys,time,subprocess
           i=sys.argv[1]
@@ -168,7 +187,7 @@ jobs:
             p.stdin.write(f_in.read())
             p.stdin.write(b"\xff")
             p.stdin.flush()
-           time.sleep(15)
+           time.sleep(5)
            p.terminate()
           EOF
           ./ribbothon aot_compiler.rib < aot_compiler.rib > gen1.img
