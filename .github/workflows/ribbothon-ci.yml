@@ -1,3 +1,161 @@
+name: Ribbothon CI (Strict Self-Hosting)
+on: [push,pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm
+      - name: Compile Seed (S0)
+        run: |
+          gcc -O3 ribbothon.c -o ribbothon -lm
+          gcc -O3 meta_compiler9.c -o meta_compiler
+      - name: Setup Void Hardware Environment
+        run: |
+          sudo apt-get install -y qemu-system-x86
+      - name: Build Baremetal AOT Generator (S0-Void)
+        run: |
+          gcc baremetal_aot_gen.c -o baremetal_aot_gen
+      - name: Generate Pure S1 (The Native Ribbothon Compiler)
+        run: |
+          cat << 'EOF' > build_pure_s1.py
+          code = []
+          code.append("A $MAIN_LOOP 1 x")
+          code.append("W $MAIN_LOOP x")
+          code.append("Z $CHAR x I $CHAR x")
+          
+          # EOF (0xFF) チェック -> ループ脱出
+          code.append("C $CHAR $CMP x F $CMP 255 x Z $MAIN_LOOP x U x")
+          
+          # 命令 '1' -> 機械語 0x47 (71)
+          code.append("C $CHAR $CMP x F $CMP 49 x Z $O x A $O 71 x P $O x U x")
+          
+          # 命令 '2' -> 機械語 0x4F (79)
+          code.append("C $CHAR $CMP x F $CMP 50 x Z $O x A $O 79 x P $O x U x")
+          
+          # 命令 '3' -> 機械語 0xFE 0x05 (254, 5)
+          code.append("C $CHAR $CMP x F $CMP 51 x Z $O x A $O 254 x P $O x Z $O x A $O 5 x P $O x U x")
+          
+          # 命令 '4' -> 機械語 0xFE 0x0D (254, 13)
+          code.append("C $CHAR $CMP x F $CMP 52 x Z $O x A $O 254 x P $O x Z $O x A $O 13 x P $O x U x")
+          
+          # ループ終端
+          code.append("E x")
+          
+          with open("pure_s1_meta.txt", "w") as f:
+              f.write("\n".join(code) + "\n")
+          EOF
+          python3 build_pure_s1.py
+          
+          # メタコンパイラで純粋S1をRibbothonコード化し、ベアメタルOSへ焼き込む
+          ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
+          ./baremetal_aot_gen < pure_s1.rib
+
+      - name: Prove The Absolute Void (Pure Native Compilation)
+        run: |
+          cat << 'EOF' > feed.py
+          import sys, time
+          time.sleep(2)
+          # テスト入力: Ribbothonの純粋な命令 '1234'
+          for c in b"1234":
+              sys.stdout.buffer.write(bytes([c]))
+              sys.stdout.buffer.flush()
+              time.sleep(0.1)
+          sys.stdout.buffer.write(b"\xff")
+          sys.stdout.buffer.flush()
+          time.sleep(10)
+          EOF
+          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=void_os.img -display none -serial stdio > void_output.txt || true
+          echo "Output from VoidOS:"
+          cat void_output.txt
+          echo ""
+          echo "Hexdump of Output:"
+          hexdump -C void_output.txt
+
+      - name: Prove Determinism (Quad-Crown DDC)
+        run: |
+          sudo apt-get install -y clang tcc
+          gcc -O3 baremetal_aot_gen.c -o gen_gcc
+          clang -O3 baremetal_aot_gen.c -o gen_clang
+          tcc baremetal_aot_gen.c -o gen_tcc
+          ./gen_gcc < pure_s1.rib
+          mv void_os.img os_gcc.img
+          ./gen_clang < pure_s1.rib
+          mv void_os.img os_clang.img
+          ./gen_tcc < pure_s1.rib
+          mv void_os.img os_tcc.img
+          HASH_GCC=$(sha256sum os_gcc.img | awk '{print $1}')
+          HASH_CLANG=$(sha256sum os_clang.img | awk '{print $1}')
+          HASH_TCC=$(sha256sum os_tcc.img | awk '{print $1}')
+          echo "GCC OS Hash:   $HASH_GCC"
+          echo "Clang OS Hash: $HASH_CLANG"
+          echo "TCC OS Hash:   $HASH_TCC"
+          if [ "$HASH_GCC" != "$HASH_CLANG" ] || [ "$HASH_GCC" != "$HASH_TCC" ]; then echo "FAIL: DDC Mismatch!"; exit 1; fi
+          echo "SUCCESS: Absolute compiler determinism proven."
+
+      - name: Dual-Oracle Semantic Validation (Host VM vs Baremetal)
+        run: |
+          printf "1234\xff" > pure_input.bin
+          ./ribbothon pure_s1.rib < pure_input.bin > host_out.bin
+          echo "Host VM (C Interpreter) Hexdump:"
+          hexdump -C host_out.bin
+          echo "Baremetal VM (Native VoidOS) Hexdump:"
+          hexdump -C void_output.txt
+          if cmp -s host_out.bin void_output.txt; then echo "SUCCESS: Dual-Oracle logic perfectly matched across dimensions."; else echo "FAIL: Semantic mismatch between C-VM and Baremetal!"; exit 1; fi
+
+      - name: Mutation Testing (Source Corruption Catch)
+        run: |
+          sed 's/A $O 71 x/A $O 72 x/' pure_s1_meta.txt > mutated_meta.txt
+          ./meta_compiler < mutated_meta.txt > mutated.rib
+          ./baremetal_aot_gen < mutated.rib
+          mv void_os.img mutated_os.img
+          python3 feed.py | timeout 15 qemu-system-x86_64 -drive format=raw,file=mutated_os.img -display none -serial stdio > mutated_out.bin || true
+          echo "Mutated Baremetal VM Hexdump:"
+          hexdump -C mutated_out.bin
+          if cmp -s mutated_out.bin void_output.txt; then echo "FAIL: Mutation was NOT caught!"; exit 1; else echo "SUCCESS: Mutation correctly altered the semantic output."; fi
+
+      - name: Generate Ribbothon Identity Compiler
+        run: |
+          cat << 'EOF' > identity_compiler.txt
+          Z $COUNT x
+          Z $CHAR x
+          Z $OUT_CHAR x
+          W $MAIN_LOOP x
+          I $CHAR x
+          C $CHAR $EOF_CHECK x
+          A $EOF_CHECK 1 x
+          C $CMP $EOF_CHECK x
+          F $CMP 0 x
+          E x
+          U x
+          Z $PROCESSED x
+          C $CMP $CHAR x F $CMP 49 x A $OUT_CHAR 49 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 50 x A $OUT_CHAR 50 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 51 x A $OUT_CHAR 51 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 52 x A $OUT_CHAR 52 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 53 x A $OUT_CHAR 53 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 54 x A $OUT_CHAR 54 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 55 x A $OUT_CHAR 55 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 56 x A $OUT_CHAR 56 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 57 x A $OUT_CHAR 57 x A $PROCESSED 1 x U x
+          C $CMP $CHAR x F $CMP 97 x A $OUT_CHAR 97 x A $PROCESSED 1 x U x
+          C $CMP $PROCESSED x F $CMP 1 x
+          P $OUT_CHAR x
+          A $COUNT 1 x
+          C $CMP $COUNT x F $CMP 5 x
+          Z $OUT_X x A $OUT_X 120 x P $OUT_X x
+          Z $COUNT x
+          U x
+          Z $OUT_CHAR x
+          Z $PROCESSED x
+          U x
+          E x
+          EOF
+          ./meta_compiler < identity_compiler.txt > compiler1.rib
+
       - name: Verify Strict Ultimate Pure Self-Host Fixed-Point
         run: |
           cat << 'EOF' > build_compilers.py
