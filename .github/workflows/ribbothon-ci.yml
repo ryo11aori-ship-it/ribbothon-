@@ -190,13 +190,12 @@ jobs:
               ret
           times 0x50-($-$$) db 0
           in_char:
-              mov dx, 0x3fd
-          .wait:
-              in al, dx
-              test al, 1
-              jz .wait
-              mov dx, 0x3f8
-              in al, dx
+              push ds
+              mov ax, 0x4000
+              mov ds, ax
+              mov al, [bx]
+              inc bx
+              pop ds
               mov [es:di], al
               ret
           times 0x70-($-$$) db 0
@@ -254,13 +253,23 @@ jobs:
               dw 127
               dw 0x7E00, 0x0000
               dq 1
+          dap2:
+              db 0x10, 0
+              dw 127
+              dw 0x0000, 0x4000
+              dq 0
           entry:
               xor ax, ax
               mov ds, ax
               mov ss, ax
               mov sp, 0x7C00
               mov ah, 0x42
+              mov dl, 0x80
               mov si, dap
+              int 0x13
+              mov ah, 0x42
+              mov dl, 0x81
+              mov si, dap2
               int 0x13
               mov ax, 0x3000
               mov es, ax
@@ -277,6 +286,7 @@ jobs:
               mov ax, 0x3000
               mov fs, ax
               xor bp, bp
+              xor bx, bx
               jmp 0x7E00
           times 510-($-$$) db 0
           dw 0xaa55
@@ -308,8 +318,8 @@ jobs:
            for b in block: bf2 += ">" + emit_byte(b) + "<"
            bf2 += "[-]]<<"
           bf2 += "[-],+]"
-          bf2 += ">" + emit_byte(0xFA) + "<" # cli
-          bf2 += ">" + emit_byte(0xF4) + "<" # hlt
+          bf2 += emit_byte(0xFA)
+          bf2 += emit_byte(0xF4)
           with open("aot_compiler.rib", "w") as f: f.write(bf_to_rib(bf2))
           EOF
           python3 build_compilers.py
@@ -324,16 +334,14 @@ jobs:
           ./ribbothon aot_compiler.rib < aot_compiler.rib > gen1.img
           truncate -s 65536 gen1.img
           cat << 'EOF' > run_qemu.py
-          import sys,time,subprocess,socket
+          import sys,time,subprocess
           i=sys.argv[1]; o=sys.argv[2]
-          p=subprocess.Popen(["qemu-system-x86_64","-drive",f"format=raw,file={i}","-display","none","-monitor","tcp:127.0.0.1:14444,server,nowait","-serial","stdio"],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL)
-          with open("aot_compiler.rib","rb") as f_in:
-           p.stdin.write(f_in.read())
-           p.stdin.write(b"\xff")
-           p.stdin.flush()
-          time.sleep(8)
-          s=socket.socket(); s.connect(("127.0.0.1",14444))
-          s.sendall(b"pmemsave 0x30000 65536 memdump.bin\nquit\n")
+          with open("aot_compiler.rib","rb") as f: data=f.read()
+          with open("input.img","wb") as f: f.write(data.ljust(65536, b'\xff'))
+          p=subprocess.Popen(["qemu-system-x86_64","-drive",f"format=raw,file={i},index=0,if=ide","-drive","format=raw,file=input.img,index=1,if=ide","-display","none","-monitor","stdio"],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL)
+          time.sleep(5)
+          p.stdin.write(b"pmemsave 0x30000 65536 memdump.bin\nquit\n")
+          p.stdin.flush()
           p.wait()
           with open("memdump.bin","rb") as f: data=f.read()
           with open(o,"wb") as f: f.write(data)
