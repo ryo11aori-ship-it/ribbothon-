@@ -156,7 +156,7 @@ jobs:
           EOF
           ./meta_compiler < identity_compiler.txt > compiler1.rib
 
-      - name: Verify Ultimate Native Fixed-Point
+      - name: Verify Absolute Native Fixed-Point
         run: |
           cat << 'EOF' > build_aot.py
           import sys
@@ -169,8 +169,7 @@ jobs:
           c+=P(0x55)+P(0xAA)
           c+=P(0xB8)+P(0x00)+P(0x20)+P(0x8E)+P(0xD8)+P(0x8E)+P(0xC0)
           c+=P(0xB9)+P(0x00)+P(0x80)+P(0x31)+P(0xC0)+P(0xBF)+P(0x00)+P(0x00)+P(0xF3)+P(0xAB)+P(0xBF)+P(0x00)+P(0x00)
-          c+="67"
-          c+="8"
+          c+="6374638"
           f=""
           for i,x in enumerate(c):
            f+=x
