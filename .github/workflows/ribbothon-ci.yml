@@ -1,5 +1,5 @@
 name: Ribbothon CI (Strict Self-Hosting)
-on: [push, pull_request]
+on: [push,pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -41,33 +41,23 @@ jobs:
                           self.code[pos] = off & 0xFF
                           self.code[pos+1] = (off >> 8) & 0xFF
                   return self.code
-          
           a = Asm()
           a.emit(0xFA, 0xFC, 0x31, 0xC0, 0x8E, 0xC0, 0x8E, 0xD8)
-          
-          # [FIX 1] ゼロクリア領域の安全化: 0x1000〜0x7DFF のみをクリア (実行コードへの自己破壊的侵食を完全に防止)
-          a.emit(0xBF, 0x00, 0x10, 0xB9, 0x00, 0x37, 0xF3, 0xAB)
-          
+          a.emit(0xBF, 0x00, 0x10, 0xB9, 0xFF, 0x7F, 0xF3, 0xAB)
           a.emit(0xBE, 0x00, 0x00, 0xBB, 0x00, 0x10)
           a.label("loop")
           a.emit(0xAC, 0x3C, 0xFF)
           a.jcc8(0x74, "halt")
-          
           def cmd(c, b):
               a.emit(0x3C, ord(c)); a.jcc8(0x75, f"s_{c}"); a.emit(*b); a.label(f"s_{c}")
-          
-          # [FIX 3] オペコードおよびI/Oセマンティクスの反転を修正
-          cmd('1', [0x43])       # > (INC BX)
-          cmd('2', [])           # < (DEC BX)
-          cmd('3', [0xFE, 0x07]) # + (INC BYTE PTR)
-          cmd('4', [0xFE, 0x0F]) # - (DEC BYTE PTR)
-          
-          # 5: 出力 (.) - UART THRE (0x20) を検証し、メモリから読み取ってポート(0x3F8)へ送信
-          cmd('5', [])
-          # 6: 入力 (,) - UART DR (0x01) を検証し、ポート(0x3F8)から読み取ってメモリへ保存
-          cmd('6', [])
-          
-          # (7 と 8 のネストループ処理は元の洗練されたロジックを保持)
+          cmd('1', [0xFE, 0x07])
+          cmd('2', [0xFE, 0x0F])
+          cmd('3', [0x43])
+          cmd('4', [0x4B])
+          cmd('5', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x01, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0xEC, 0x88, 0x07])
+          cmd('6', [0xBA, 0xFD, 0x03, 0xEC, 0xA8, 0x20, 0x74, 0xF8, 0xBA, 0xF8, 0x03, 0x8A, 0x07, 0xEE])
+          cmd('9', [0x80, 0x07, 0x03])
+          cmd('a', [0x80, 0x2F, 0x03])
           a.emit(0x3C, ord('7')); a.jcc8(0x75, "s7")
           a.emit(0x80, 0x3F, 0x00); a.jcc8(0x75, "s7")
           a.emit(0xB9, 0x01, 0x00)
@@ -76,11 +66,10 @@ jobs:
           a.emit(0x3C, ord('8')); a.jcc8(0x75, "nf8"); a.emit(0x49); a.label("nf8")
           a.emit(0x85, 0xC9); a.jcc8(0x75, "fwd")
           a.label("s7")
-          
           a.emit(0x3C, ord('8')); a.jcc8(0x75, "s8")
           a.emit(0x80, 0x3F, 0x00); a.jcc8(0x74, "s8")
           a.emit(0xB9, 0x01, 0x00)
-          a.emit(0x4E) 
+          a.emit(0x4E)
           a.label("bwd")
           a.emit(0x4E)
           a.emit(0x8A, 0x04)
@@ -89,25 +78,17 @@ jobs:
           a.emit(0x85, 0xC9); a.jcc8(0x75, "bwd")
           a.emit(0x46)
           a.label("s8")
-          
           a.jmp16("loop")
           a.label("halt"); a.emit(0xFA, 0xF4, 0xEB, 0xFD)
-          
           c = a.resolve()
-          
-          # [FIX 2] ソースコード・ポインタのオフセット脱臼を修正 (MBR二重計上を排除)
-          addr = 0x7E00 + 50 + len(c)
-          c, c = addr & 0xFF, (addr >> 8) & 0xFF
-          
+          addr = 0x7E00 + 562 + len(c)
+          c[17], c[18] = addr & 0xFF, (addr >> 8) & 0xFF
           out = ["A $MAIN_LOOP 1 x"]
           for b in c:
               out.append(f"Z $O x A $O {b} x P $O x")
-                  
           out.append("W $MAIN_LOOP x Z $CHAR x I $CHAR x C $CHAR $CMP x F $CMP 255 x P $CHAR x Z $MAIN_LOOP x U x C $MAIN_LOOP $CMP x F $CMP 1 x P $CHAR x U x E x")
-          
           open("pure_s1_meta.txt", "w").write("\n".join(out) + "\n")
           EOF
-          
           python3 build_pure_s1.py
           ./meta_compiler < pure_s1_meta.txt > pure_s1.rib
           ./baremetal_aot_gen < pure_s1.rib
@@ -174,23 +155,14 @@ jobs:
           echo "=== SHA-256 Hash Matching (The Provenance Proof) ==="
           ./baremetal_aot_gen < pure_s1.rib
           mv void_os.img void_os1.img
-          
           cat << 'EOF' > feed_self.py
-          import sys, time, subprocess, threading
+          import sys, time, subprocess
           img = sys.argv[1]
+          out_file = sys.argv[2]
           qemu = subprocess.Popen(
-              ["qemu-system-x86_64", "-drive", f"format=raw,file={img}", "-display", "none", "-serial", "stdio"],
-              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+              ["qemu-system-x86_64", "-drive", f"format=raw,file={img}", "-display", "none", "-serial", f"file:{out_file}"],
+              stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
           )
-          output = bytearray()
-          def read_output():
-              while True:
-                  c = qemu.stdout.read(1)
-                  if not c: break
-                  output.extend(c)
-          t = threading.Thread(target=read_output)
-          t.daemon = True
-          t.start()
           time.sleep(2)
           with open("pure_s1.rib", "rb") as f:
               d = f.read()
@@ -209,9 +181,7 @@ jobs:
           time.sleep(10)
           qemu.terminate()
           qemu.wait()
-          sys.stdout.buffer.write(output)
           EOF
-          
           cat << 'EOF' > make_os.py
           import sys
           boot = bytearray([0xFA,0x31,0xC0,0x8E,0xD8,0x8E,0xC0,0x8E,0xD0,0xBC,0x00,0x7C,0xB4,0x02,0xB0,0x3E,0xB5,0x00,0xB1,0x02,0xB6,0x00,0xBB,0x00,0x7E,0xCD,0x13,0xEA,0x00,0x7E,0x00,0x00])
@@ -222,24 +192,25 @@ jobs:
           final_img += bytearray(10 * 1024 * 1024 - len(final_img))
           open(sys.argv[2], "wb").write(final_img)
           EOF
-          
-          python3 feed_self.py void_os1.img > compiler1.bin
-          
+          python3 feed_self.py void_os1.img compiler1.bin
           python3 make_os.py compiler1.bin void_os2.img
-          python3 feed_self.py void_os2.img > compiler2.bin
-          
+          python3 feed_self.py void_os2.img compiler2.bin
           python3 make_os.py compiler2.bin void_os3.img
-          python3 feed_self.py void_os3.img > compiler3.bin
-          
+          python3 feed_self.py void_os3.img compiler3.bin
           SEED_HASH=$(sha256sum pure_s1.rib | awk '{print $1}')
           COMPILER1_HASH=$(sha256sum compiler1.bin | awk '{print $1}')
           COMPILER2_HASH=$(sha256sum compiler2.bin | awk '{print $1}')
           COMPILER3_HASH=$(sha256sum compiler3.bin | awk '{print $1}')
-          
           echo "Seed (pure_s1.rib): $SEED_HASH"
           echo "Gen 1 Output:       $COMPILER1_HASH"
           echo "Gen 2 Output:       $COMPILER2_HASH"
           echo "Gen 3 Output:       $COMPILER3_HASH"
-          
-if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
+          if [ "$COMPILER1_HASH" != "$COMPILER2_HASH" ] || [ "$COMPILER2_HASH" != "$COMPILER3_HASH" ]; then
+              echo "❌ FIXED POINT MISMATCH"
+              echo "=== FATAL DIAGNOSTICS ==="
+              ls -l pure_s1.rib compiler*.bin
+              cmp -l compiler1.bin compiler2.bin | head -n 20 || true
+              exit 1
+          fi
+          if [ "$SEED_HASH" != "$COMPILER1_HASH" ]; then echo "❌ PROVENANCE MISMATCH" && exit 1; fi
           echo "🎉 PERFECT MATCH: Provenance Closed and Fixed Point Stable on Baremetal!"
